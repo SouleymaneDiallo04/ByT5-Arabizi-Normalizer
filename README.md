@@ -10,7 +10,7 @@
 ## Introduction
 
 <p align="center">
-  <img src="docs/_static/images/Podcast_Maroc_im.png" alt="Illustration du projet" width="600">
+  <img src="docs/_static/images/Podcast_Maroc_im.png" alt="Illustration du projet" width="100%">
 </p>
 
 ### Contexte
