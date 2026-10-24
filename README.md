@@ -7,7 +7,13 @@
 ![Statut](https://img.shields.io/badge/statut-en%20d%C3%A9veloppement-orange)
 
 ## Introduction
+## Introduction
 
+<p align="center">
+  <img src="docs/_static/images/Podcast_Maroc_im.png" alt="Illustration du projet" width="600">
+</p>
+
+### Contexte
 ### Contexte
 
 Le darija est la langue de communication quotidienne au Maroc, mais il est peu écrit de façon formelle. Sur les réseaux sociaux et les messageries, il est très souvent écrit en **arabizi** : des lettres latines complétées par des chiffres qui représentent des sons absents du latin (`3` pour ع, `7` pour ح, `9` pour ق). Cette écriture n'a pas de norme : chacun écrit comme il prononce, selon ses habitudes et son clavier.
