@@ -32,8 +32,9 @@ Tirés de `Haitam03/doda_synthetic` :
 | أنا مزوّج | ana mzawaj |
 | غانمشيو فيها كاملين | ghanmchiw fiha kamlin |
 
-## Fichier fusionné
+## Fichier fusionné (à venir)
 
-`darija_all.csv` empile les quatre fichiers, retire les lignes dont `darija`
-ou `transliteration` est vide et supprime les doublons exacts. Aucun texte
-n'est modifié.
+`darija_all.csv` empilera les quatre fichiers, retirera les lignes dont
+`darija` ou `transliteration` est vide et supprimera les doublons exacts, sans
+modifier le texte. Ce fichier n'existe pas encore : la fusion et le nettoyage
+constituent l'étape suivante du projet.

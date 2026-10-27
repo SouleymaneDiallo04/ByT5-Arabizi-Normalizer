@@ -7,13 +7,11 @@
 ![Statut](https://img.shields.io/badge/statut-en%20d%C3%A9veloppement-orange)
 
 ## Introduction
-## Introduction
 
 <p align="center">
   <img src="docs/_static/images/Podcast_Maroc_im.png" alt="Illustration du projet" width="100%">
 </p>
 
-### Contexte
 ### Contexte
 
 Le darija est la langue de communication quotidienne au Maroc, mais il est peu écrit de façon formelle. Sur les réseaux sociaux et les messageries, il est très souvent écrit en **arabizi** : des lettres latines complétées par des chiffres qui représentent des sons absents du latin (`3` pour ع, `7` pour ح, `9` pour ق). Cette écriture n'a pas de norme : chacun écrit comme il prononce, selon ses habitudes et son clavier.
@@ -65,20 +63,26 @@ Chaque fichier produit suit le même schéma :
 | `transliteration` | La même phrase en arabizi |
 | `source` | Jeu de données d'origine |
 
-Le corpus est publié sur Hugging Face : <lien-Hugging-Face>
+Le corpus est publié sur Hugging Face : <https://huggingface.co/datasets/sawti-nlp/DATA>
+(dépôt privé pour l'instant ; l'accès doit être accordé aux encadrants, ou le dépôt passé en public.)
 
 ## Structure du dépôt
 
 ```
 .
-├── extract_darija.py            # DrIAmed/darija-youtube-dataset
-├── extract_doda.py              # MBZUAI-Paris/DODa-10K
-├── extract_daa_pairs.py         # OiQ/daa-pairs
-├── extract_doda_synthetic.py    # Haitam03/doda_synthetic
-├── merge_all.py                 # fusion, nettoyage, dédoublonnage
-├── docs/                        # documentation (Sphinx, Read the Docs)
-└── .readthedocs.yaml
+├── Extractor/
+│   ├── extract_darija.py           # DrIAmed/darija-youtube-dataset
+│   ├── extract_doda.py             # MBZUAI-Paris/DODa-10K
+│   ├── extract_daa_pairs.py        # OiQ/daa-pairs
+│   ├── extract_doda_synthetic.py   # Haitam03/doda_synthetic
+│   └── seed_lexicon.py             # amorce du lexique de mots français
+├── docs/                           # documentation (Sphinx, Read the Docs)
+├── .readthedocs.yaml
+└── .gitignore
 ```
+
+> La fusion, le nettoyage et le dédoublonnage (`merge_all.py` → `darija_all.csv`)
+> relèvent de la phase suivante et ne sont pas encore écrits.
 
 ## Démarrage rapide
 
@@ -87,14 +91,13 @@ git clone https://github.com/SouleymaneDiallo04/ByT5-Arabizi-Normalizer
 cd ByT5-Arabizi-Normalizer
 python -m pip install pandas pyarrow requests huggingface_hub
 
-python extract_darija.py
-python extract_doda.py
-python extract_daa_pairs.py
-python extract_doda_synthetic.py
-python merge_all.py
+python Extractor/extract_darija.py
+python Extractor/extract_doda.py
+python Extractor/extract_daa_pairs.py
+python Extractor/extract_doda_synthetic.py
 ```
 
-Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un CSV par source, plus `darija_all.csv` pour le corpus fusionné.
+Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un fichier CSV par source. Le corpus fusionné (`darija_all.csv`) sera produit à l'étape de nettoyage.
 
 > Sous Windows, si le chemin utilisateur contient un espace, utiliser `python -m pip install ...` plutôt que `pip install ...`.
 

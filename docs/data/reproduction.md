@@ -7,11 +7,13 @@ Tout le code est dans le dépôt GitHub :
 
 | Script | Produit |
 |---|---|
-| `extract_darija.py` | `darija_translit.csv` |
-| `extract_doda.py` | `doda_translit.csv` |
-| `extract_daa_pairs.py` | `daa_pairs_translit.csv` |
-| `extract_doda_synthetic.py` | `doda_synthetic_translit.csv` |
-| `merge_all.py` | `darija_all.csv` |
+| `Extractor/extract_darija.py` | `darija_translit.csv` |
+| `Extractor/extract_doda.py` | `doda_translit.csv` |
+| `Extractor/extract_daa_pairs.py` | `daa_pairs_translit.csv` |
+| `Extractor/extract_doda_synthetic.py` | `doda_synthetic_translit.csv` |
+
+`merge_all.py`, qui produira `darija_all.csv` (fusion, nettoyage,
+dédoublonnage), relève de la phase suivante et n'est pas encore écrit.
 
 ## Principe
 
@@ -27,11 +29,10 @@ API publique de Hugging Face si elle échoue.
 ## Commandes
 
 ```bash
-python extract_darija.py
-python extract_doda.py
-python extract_daa_pairs.py
-python extract_doda_synthetic.py
-python merge_all.py
+python Extractor/extract_darija.py
+python Extractor/extract_doda.py
+python Extractor/extract_daa_pairs.py
+python Extractor/extract_doda_synthetic.py
 ```
 
 ## Problèmes courants
