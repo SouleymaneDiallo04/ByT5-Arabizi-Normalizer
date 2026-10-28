@@ -63,7 +63,7 @@ Chaque fichier produit suit le même schéma :
 | `transliteration` | La même phrase en arabizi |
 | `source` | Jeu de données d'origine |
 
-Le corpus est publié sur Hugging Face : <https://huggingface.co/datasets/sawti-nlp/DATA>
+Le corpus est publié sur Hugging Face : <https://huggingface.co/datasets/sawti-nlp/darija-arabizi-corpus>
 (dépôt privé pour l'instant ; l'accès doit être accordé aux encadrants, ou le dépôt passé en public.)
 
 ## Structure du dépôt
