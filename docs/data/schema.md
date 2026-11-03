@@ -32,9 +32,38 @@ Tirés de `Haitam03/doda_synthetic` :
 | أنا مزوّج | ana mzawaj |
 | غانمشيو فيها كاملين | ghanmchiw fiha kamlin |
 
-## Fichier fusionné (à venir)
+## Fichier fusionné
 
-`darija_all.csv` empilera les quatre fichiers, retirera les lignes dont
-`darija` ou `transliteration` est vide et supprimera les doublons exacts, sans
-modifier le texte. Ce fichier n'existe pas encore : la fusion et le nettoyage
-constituent l'étape suivante du projet.
+`darija_all.csv`, produit par `merge_all.py`, empile les cinq fichiers et
+conserve les quatre colonnes ci-dessus, complétées par quatre colonnes de
+contrôle.
+
+| Colonne | Type | Contenu |
+|---|---|---|
+| `key_ar` | texte | Clé de comparaison de `darija` : ponctuation, vocalisation et variantes de lettres neutralisées |
+| `key_la` | texte | Clé de comparaison de `transliteration` : minuscules, ponctuation neutralisée |
+| `conflit` | booléen | Une même `key_la` reçoit plusieurs `key_ar` distinctes |
+| `suspect` | booléen | Rapport de longueur entre les deux côtés hors de la bande plausible |
+
+Le texte des colonnes `darija` et `transliteration` n'est pas réécrit : seuls les
+espaces sont normalisés. Les clés servent uniquement à comparer, jamais à
+entraîner.
+
+### Ce que la fusion retire
+
+| Motif | Lignes |
+|---|---|
+| `darija` ou `transliteration` vide | 270 |
+| Consigne de génération restée dans la cible | 1 |
+| Doublons de paires, aux variantes d'écriture près | 4 256 |
+
+### Ce qu'elle marque sans le retirer
+
+| Motif | Lignes |
+|---|---|
+| `conflit` | 21 711 |
+| `suspect` | 188 |
+
+Une même phrase arabe écrite de plusieurs façons en arabizi n'est **pas** un
+doublon : c'est la variation d'écriture que le modèle doit apprendre à absorber.
+Seule la paire entièrement identique est supprimée.

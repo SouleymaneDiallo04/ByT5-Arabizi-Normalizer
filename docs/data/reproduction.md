@@ -11,9 +11,11 @@ Tout le code est dans le dépôt GitHub :
 | `Extractor/extract_doda.py` | `doda_translit.csv` |
 | `Extractor/extract_daa_pairs.py` | `daa_pairs_translit.csv` |
 | `Extractor/extract_doda_synthetic.py` | `doda_synthetic_translit.csv` |
+| `merge_all.py` | `darija_all.csv` |
 
-`merge_all.py`, qui produira `darija_all.csv` (fusion, nettoyage,
-dédoublonnage), relève de la phase suivante et n'est pas encore écrit.
+`atlasia/DODa-audio-dataset-V3` n'a pas encore de script : son CSV se récupère
+depuis le dépôt Hugging Face. `merge_all.py` signale les fichiers absents et
+poursuit avec les autres.
 
 ## Principe
 
@@ -33,6 +35,8 @@ python Extractor/extract_darija.py
 python Extractor/extract_doda.py
 python Extractor/extract_daa_pairs.py
 python Extractor/extract_doda_synthetic.py
+
+python merge_all.py
 ```
 
 ## Problèmes courants

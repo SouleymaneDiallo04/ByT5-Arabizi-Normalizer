@@ -6,8 +6,13 @@
 - [x] Extraction de `MBZUAI-Paris/DODa-10K` (10 000 lignes)
 - [x] Extraction de `OiQ/daa-pairs` (112 814 lignes)
 - [x] Extraction de `Haitam03/doda_synthetic` (64 260 lignes)
+- [x] Extraction de `atlasia/DODa-audio-dataset-V3` (11 517 lignes, sans script)
 - [x] Rédaction de la carte du dataset Hugging Face
-- [ ] Fusion et nettoyage (`merge_all.py`) et publication de `darija_all.csv`
+- [x] Fusion et nettoyage (`merge_all.py`) : 196 770 lignes conservées
+- [ ] Publication de `darija_all.csv` sur Hugging Face
+- [ ] Découpage train / dev / test sans fuite d'une phrase entre les blocs
+- [ ] Script d'extraction pour `DODa-audio-dataset-V3`, pour un pipeline
+      entièrement reproductible
 - [ ] Amorçage d'un lexique français ↔ écriture arabe à partir de la colonne
       `mixte` de `daa-pairs`
 - [ ] Liste de mots français fréquents par domaine (santé, technologie,
@@ -30,5 +35,5 @@
 ## Documentation
 
 - [x] Structure minimale de la documentation
-- [ ] Déploiement sur Read the Docs
+- [x] Déploiement sur Read the Docs
 - [ ] Pages Modèle et Évaluation

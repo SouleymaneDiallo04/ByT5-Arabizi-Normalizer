@@ -42,7 +42,7 @@ Quatre difficultés rendent la tâche non triviale :
 
 Le projet normalise l'écriture ; il ne cherche pas à traduire le darija, ni à identifier le dialecte.
 
-> **Statut.** Les quatre sources sont extraites et unifiées. Le lexique, les phrases mixtes, le jeu de test et l'entraînement du modèle restent à réaliser.
+> **Statut.** Les cinq sources sont extraites, unifiées et fusionnées en un corpus nettoyé. Le lexique, les phrases mixtes, le jeu de test et l'entraînement du modèle restent à réaliser.
 
 ## Données
 
@@ -52,7 +52,9 @@ Le projet normalise l'écriture ; il ne cherche pas à traduire le darija, ni à
 | [`MBZUAI-Paris/DODa-10K`](https://huggingface.co/datasets/MBZUAI-Paris/DODa-10K) | 10 000 | Corpus de référence |
 | [`OiQ/daa-pairs`](https://huggingface.co/datasets/OiQ/daa-pairs) | 112 814 | Synthétique (généré par LLM) |
 | [`Haitam03/doda_synthetic`](https://huggingface.co/datasets/Haitam03/doda_synthetic) | 64 260 | Synthétique, arabizi bruité |
-| **Total (avant nettoyage)** | **189 780** | |
+| [`atlasia/DODa-audio-dataset-V3`](https://huggingface.co/datasets/atlasia/DODa-audio-dataset-V3) | 11 517 | Transcriptions d'enregistrements |
+| **Total (avant nettoyage)** | **201 297** | |
+| **Après fusion et nettoyage** | **196 770** | |
 
 Chaque fichier produit suit le même schéma :
 
@@ -76,13 +78,30 @@ Le corpus est publié sur Hugging Face : <https://huggingface.co/datasets/sawti-
 │   ├── extract_daa_pairs.py        # OiQ/daa-pairs
 │   ├── extract_doda_synthetic.py   # Haitam03/doda_synthetic
 │   └── seed_lexicon.py             # amorce du lexique de mots français
+├── merge_all.py                    # fusion, nettoyage, dédoublonnage
 ├── docs/                           # documentation (Sphinx, Read the Docs)
 ├── .readthedocs.yaml
 └── .gitignore
 ```
 
-> La fusion, le nettoyage et le dédoublonnage (`merge_all.py` → `darija_all.csv`)
-> relèvent de la phase suivante et ne sont pas encore écrits.
+## Fusion et nettoyage
+
+`merge_all.py` empile les cinq fichiers et produit `darija_all.csv`. Il retire les
+lignes vides, les consignes de génération restées dans la cible et les doublons de
+paires, puis ajoute des colonnes de contrôle. Le texte lui-même n'est pas réécrit :
+seuls les espaces sont normalisés, car c'est ce texte qui servira à l'entraînement.
+
+| Colonne ajoutée | Contenu |
+|---|---|
+| `key_ar`, `key_la` | Clés de comparaison : ponctuation, vocalisation et variantes de lettres neutralisées |
+| `conflit` | Un même arabizi reçoit des cibles arabes divergentes selon la source |
+| `suspect` | Les deux côtés de la paire ne se correspondent manifestement pas |
+
+Les lignes marquées sont **conservées** et non supprimées. Deux cas ne se traitent
+pas de la même façon : une même phrase arabe écrite de plusieurs façons en arabizi
+est la variation que le modèle doit apprendre, alors qu'un même arabizi associé à
+des cibles divergentes est une incohérence entre conventions de sources. L'arbitrage
+du second cas dépend de la convention orthographique encore à fixer.
 
 ## Démarrage rapide
 
@@ -95,9 +114,13 @@ python Extractor/extract_darija.py
 python Extractor/extract_doda.py
 python Extractor/extract_daa_pairs.py
 python Extractor/extract_doda_synthetic.py
+
+python merge_all.py
 ```
 
-Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un fichier CSV par source. Le corpus fusionné (`darija_all.csv`) sera produit à l'étape de nettoyage.
+Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un fichier CSV par source, puis `darija_all.csv` pour le corpus fusionné.
+
+> `atlasia/DODa-audio-dataset-V3` n'a pas encore de script d'extraction : son CSV se récupère depuis le dépôt Hugging Face. `merge_all.py` signale les fichiers absents et poursuit avec les autres.
 
 > Sous Windows, si le chemin utilisateur contient un espace, utiliser `python -m pip install ...` plutôt que `pip install ...`.
 
@@ -120,9 +143,9 @@ python -m sphinx -b html docs docs/_build/html
 
 ## Feuille de route
 
-- [x] Extraction et unification de quatre sources
+- [x] Extraction et unification de cinq sources
 - [x] Carte du dataset et documentation initiale
-- [ ] Fusion et nettoyage du corpus
+- [x] Fusion et nettoyage du corpus (`merge_all.py`)
 - [ ] Lexique de mots français fréquents et phrases mixtes darija / français
 - [ ] Nouveau Testament en darija (génération puis validation)
 - [ ] Jeu de test réel relu à la main
