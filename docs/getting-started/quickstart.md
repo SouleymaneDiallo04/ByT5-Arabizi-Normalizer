@@ -7,11 +7,13 @@ python Extractor/extract_darija.py
 python Extractor/extract_doda.py
 python Extractor/extract_daa_pairs.py
 python Extractor/extract_doda_synthetic.py
+
+python merge_all.py
 ```
 
-Chaque script produit un fichier CSV (par exemple `doda_translit.csv`) et
-affiche le nombre de lignes enregistrées. La fusion des quatre fichiers en
-`darija_all.csv` relève de la phase de nettoyage et n'est pas encore écrite.
+Chaque script d'extraction produit un fichier CSV (par exemple
+`doda_translit.csv`) et affiche le nombre de lignes enregistrées. `merge_all.py`
+les empile ensuite en `darija_all.csv` et détaille ce qu'il a retiré et marqué.
 
 Les scripts lisent seulement les colonnes utiles des fichiers Parquet publiés
 sur Hugging Face : il n'est pas nécessaire de télécharger les jeux de données

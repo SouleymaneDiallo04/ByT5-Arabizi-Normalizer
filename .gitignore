@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Corpus produit par les scripts : il est publié sur Hugging Face, pas dans git
+# (darija_all.csv pèse à lui seul 66 Mo, au-delà de la limite GitHub)
+*.csv
+*.parquet

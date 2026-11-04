@@ -29,5 +29,5 @@ variantes d'écriture et aux abréviations.
 
 ## État actuel
 
-Les données sont extraites et unifiées. L'entraînement du modèle n'a pas encore
-commencé. Voir {doc}`roadmap`.
+Les données sont extraites, unifiées et fusionnées en un corpus nettoyé.
+L'entraînement du modèle n'a pas encore commencé. Voir {doc}`roadmap`.
