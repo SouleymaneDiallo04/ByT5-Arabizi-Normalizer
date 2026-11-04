@@ -79,6 +79,7 @@ Le corpus est publié sur Hugging Face : <https://huggingface.co/datasets/sawti-
 │   ├── extract_doda_synthetic.py   # Haitam03/doda_synthetic
 │   └── seed_lexicon.py             # amorce du lexique de mots français
 ├── merge_all.py                    # fusion, nettoyage, dédoublonnage
+├── make_splits.py                  # jeu de test et découpage train / dev
 ├── docs/                           # documentation (Sphinx, Read the Docs)
 ├── .readthedocs.yaml
 └── .gitignore
@@ -103,6 +104,23 @@ est la variation que le modèle doit apprendre, alors qu'un même arabizi associ
 des cibles divergentes est une incohérence entre conventions de sources. L'arbitrage
 du second cas dépend de la convention orthographique encore à fixer.
 
+## Jeu de test et découpage
+
+`make_splits.py` produit `train.csv` (186 861 lignes), `dev.csv` (9 799) et
+`test_real.csv` (850), et garantit trois choses :
+
+- **Le jeu de test est [`atlasia/TerjamaBench`](https://huggingface.co/datasets/atlasia/TerjamaBench)**, seul arabizi écrit par des humains dont nous disposons, le reste du corpus étant à plus de 90 % produit par des modèles. Il est réservé à l'évaluation.
+- **Aucune phrase ne traverse deux blocs.** Le découpage porte sur la clé de phrase et non sur les lignes, et 110 lignes du corpus qui recoupaient le jeu de test ont été retirées.
+- **Le `dev` ne contient aucune référence ambiguë**, puisqu'il sert à la mise au point.
+
+Une colonne `darija_norm` s'ajoute : la cible débarrassée de la vocalisation,
+avec le point d'interrogation en arabe. `darija` reste intact à côté. Ces deux
+écarts représentaient 27 % des cibles d'entraînement contre 0,7 % de celles du
+jeu de test, donc autant d'erreurs de caractères sans erreur de langue.
+
+Les limites du jeu de test, sa taille et la discipline de son usage sont décrites
+dans la [documentation](https://byt5-arabizi-normalizer.readthedocs.io/).
+
 ## Démarrage rapide
 
 ```bash
@@ -116,6 +134,7 @@ python Extractor/extract_daa_pairs.py
 python Extractor/extract_doda_synthetic.py
 
 python merge_all.py
+python make_splits.py
 ```
 
 Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un fichier CSV par source, puis `darija_all.csv` pour le corpus fusionné.
@@ -148,7 +167,8 @@ python -m sphinx -b html docs docs/_build/html
 - [x] Fusion et nettoyage du corpus (`merge_all.py`)
 - [ ] Lexique de mots français fréquents et phrases mixtes darija / français
 - [ ] Nouveau Testament en darija (génération puis validation)
-- [ ] Jeu de test réel relu à la main
+- [x] Jeu de test et découpage sans fuite (`make_splits.py`)
+- [ ] Jeu de contrôle d'arabizi réel de messagerie, annoté à la main
 - [ ] Entraînement et évaluation du modèle ByT5
 
 ## Contributeurs

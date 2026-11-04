@@ -67,3 +67,49 @@ entraîner.
 Une même phrase arabe écrite de plusieurs façons en arabizi n'est **pas** un
 doublon : c'est la variation d'écriture que le modèle doit apprendre à absorber.
 Seule la paire entièrement identique est supprimée.
+
+## Fichiers d'entraînement
+
+`make_splits.py` tire trois fichiers du corpus fusionné.
+
+| Fichier | Lignes | Contenu |
+|---|---:|---|
+| `train.csv` | 186 861 | Corpus d'entraînement |
+| `dev.csv` | 9 799 | Mise au point et arrêt précoce |
+| `test_real.csv` | 850 | TerjamaBench, évaluation seule |
+
+Une colonne s'ajoute, et une seule :
+
+| Colonne | Contenu |
+|---|---|
+| `darija_norm` | La cible, vocalisation retirée et point d'interrogation en arabe |
+
+`darija` reste intact à côté, ce qui rend la normalisation réversible et
+permet de l'évaluer en ablation. Elle ne touche que les points non débattus :
+TerjamaBench ne porte pas de vocalisation (0,2 % de ses mots contre 21 % dans
+`doda_synthetic`) et écrit `؟` dans 100 % des cas contre 3 % pour `DODa-10K`.
+Laisser ces écarts ferait compter chaque diacritique produit comme une erreur de
+caractère, sans la moindre erreur de langue. Elle modifie 27 % des cibles
+d'entraînement et seulement 0,7 % de celles du jeu de test.
+
+Le jeu de test ajoute `topic`, `annotator_dialect` et `mot_isole`, pour permettre
+l'analyse d'erreurs par thème et par variété régionale.
+
+### Trois garanties
+
+- **Aucune phrase commune entre `train` et `dev`.** Le découpage porte sur
+  `key_ar`, pas sur les lignes : une phrase présente dans deux sources reste
+  d'un seul côté.
+- **Aucune phrase commune entre `train` et le jeu de test.** 110 lignes du
+  corpus ont été retirées à ce titre, 91 par le côté arabe, 38 par l'arabizi,
+  19 par les deux.
+- **Aucune ligne ambiguë dans `dev`.** Les lignes `conflit` et `suspect` en sont
+  écartées, une référence de mise au point devant être unique.
+
+```{note}
+Ce dernier choix a un coût : les conflits étant concentrés sur la famille DODa,
+les écarter du `dev` y réduit mécaniquement la part de `DODa-10K` (0,6 % contre
+5,1 % dans `train`). Le `dev` est donc propre mais non représentatif par source.
+Le compromis est assumé : le `dev` sert l'arrêt précoce, il doit donc ressembler
+au jeu de test, dont `daa-pairs` est justement la source la plus proche.
+```

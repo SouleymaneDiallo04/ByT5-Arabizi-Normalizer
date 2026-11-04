@@ -12,6 +12,7 @@ Tout le code est dans le dépôt GitHub :
 | `Extractor/extract_daa_pairs.py` | `daa_pairs_translit.csv` |
 | `Extractor/extract_doda_synthetic.py` | `doda_synthetic_translit.csv` |
 | `merge_all.py` | `darija_all.csv` |
+| `make_splits.py` | `train.csv`, `dev.csv`, `test_real.csv` |
 
 `atlasia/DODa-audio-dataset-V3` n'a pas encore de script : son CSV se récupère
 depuis le dépôt Hugging Face. `merge_all.py` signale les fichiers absents et
@@ -37,6 +38,7 @@ python Extractor/extract_daa_pairs.py
 python Extractor/extract_doda_synthetic.py
 
 python merge_all.py
+python make_splits.py
 ```
 
 ## Problèmes courants
