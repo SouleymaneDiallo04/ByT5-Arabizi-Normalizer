@@ -1,0 +1,9 @@
+# Dependances de l'entrainement seulement : les scripts de donnees et la
+# baseline n'en ont pas besoin, d'ou un fichier separe.
+#
+# A figer avec pip freeze des que l'environnement GPU fonctionne. ENF-04 exige
+# des versions epinglees, et celles de torch dependent de la version de CUDA
+# disponible sur la machine retenue.
+torch>=2.1
+transformers>=4.40
+accelerate>=0.30
