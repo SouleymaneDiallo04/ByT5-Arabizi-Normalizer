@@ -66,6 +66,8 @@ data/limitations
 :caption: Modèle
 
 model/index
+model/baseline
+model/evaluation
 ```
 
 ```{toctree}

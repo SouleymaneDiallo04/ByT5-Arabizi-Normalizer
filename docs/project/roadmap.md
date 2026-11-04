@@ -29,6 +29,9 @@
 
 ## Modèle
 
+- [x] Baseline déterministe (`baseline.py`) : CER 0,1735, exactitude 18,2 %
+- [x] Harnais d'évaluation (`evaluate.py`), commande unique et reproductible
+- [ ] Comparaison aux modèles publics de translittération darija sur le même jeu de test
 - [ ] Choix de la configuration de ByT5
 - [ ] Entraînement de référence
 - [ ] Évaluation (métriques à définir)
@@ -38,4 +41,4 @@
 
 - [x] Structure minimale de la documentation
 - [x] Déploiement sur Read the Docs
-- [ ] Pages Modèle et Évaluation
+- [x] Pages Modèle et Évaluation

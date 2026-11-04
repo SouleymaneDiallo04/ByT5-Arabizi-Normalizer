@@ -80,6 +80,10 @@ Le corpus est publié sur Hugging Face : <https://huggingface.co/datasets/sawti-
 │   └── seed_lexicon.py             # amorce du lexique de mots français
 ├── merge_all.py                    # fusion, nettoyage, dédoublonnage
 ├── make_splits.py                  # jeu de test et découpage train / dev
+├── baseline.py                     # baseline déterministe (règles + table de mots)
+├── evaluate.py                     # métriques, commande unique et reproductible
+├── test_robustesse.py              # contrôle de recette ENF-08
+├── requirements.txt                # versions épinglées
 ├── docs/                           # documentation (Sphinx, Read the Docs)
 ├── .readthedocs.yaml
 └── .gitignore
@@ -126,7 +130,7 @@ dans la [documentation](https://byt5-arabizi-normalizer.readthedocs.io/).
 ```bash
 git clone https://github.com/SouleymaneDiallo04/ByT5-Arabizi-Normalizer
 cd ByT5-Arabizi-Normalizer
-python -m pip install pandas pyarrow requests huggingface_hub
+python -m pip install -r requirements.txt
 
 python Extractor/extract_darija.py
 python Extractor/extract_doda.py
@@ -135,6 +139,9 @@ python Extractor/extract_doda_synthetic.py
 
 python merge_all.py
 python make_splits.py
+
+python baseline.py
+python evaluate.py
 ```
 
 Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un fichier CSV par source, puis `darija_all.csv` pour le corpus fusionné.
@@ -142,6 +149,26 @@ Les scripts lisent à distance uniquement les colonnes de texte des fichiers Par
 > `atlasia/DODa-audio-dataset-V3` n'a pas encore de script d'extraction : son CSV se récupère depuis le dépôt Hugging Face. `merge_all.py` signale les fichiers absents et poursuit avec les autres.
 
 > Sous Windows, si le chemin utilisateur contient un espace, utiliser `python -m pip install ...` plutôt que `pip install ...`.
+
+## Baseline et évaluation
+
+La baseline est le plancher que le modèle doit dépasser. Elle n'apprend rien :
+une table de correspondance de mots extraite du corpus d'entraînement, puis une
+conversion caractère par caractère pour les mots qu'elle ignore.
+
+| Système | CER | Exactitude phrase |
+|---|---:|---:|
+| Règles seules, aucune donnée | 0,2224 | 9,6 % |
+| **Règles + table apprise sur le train** | **0,1735** | **18,2 %** |
+
+C'est contre **0,1735** que ByT5 doit être comparé, les deux utilisant les mêmes
+données. L'écart mesurera ce que le modèle apporte au-delà d'une recherche dans
+un dictionnaire.
+
+Les métriques sont produites par une **commande unique**, `evaluate.py`, qui
+servira aussi au modèle et aux modèles publics de comparaison. Le détail des
+résultats, par thème et par variété régionale, est dans la
+[documentation](https://byt5-arabizi-normalizer.readthedocs.io/).
 
 ## Documentation
 
@@ -168,6 +195,7 @@ python -m sphinx -b html docs docs/_build/html
 - [ ] Lexique de mots français fréquents et phrases mixtes darija / français
 - [ ] Nouveau Testament en darija (génération puis validation)
 - [x] Jeu de test et découpage sans fuite (`make_splits.py`)
+- [x] Baseline déterministe et harnais d'évaluation
 - [ ] Jeu de contrôle d'arabizi réel de messagerie, annoté à la main
 - [ ] Entraînement et évaluation du modèle ByT5
 
