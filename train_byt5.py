@@ -9,13 +9,21 @@ soient mesures par la meme commande.
 Ce script demande un GPU. Sur processeur seul, une epoque sur 186 861 paires
 depasse la journee : le decodage est autoregressif et travaille a l'octet.
 
-Usage : python train_byt5.py [nombre_de_paires_pour_un_essai_rapide]
+Les fichiers de paires sont lus dans le repertoire courant, et a defaut
+telecharges depuis le depot Hugging Face du projet : sur Kaggle ou Colab il n'y
+a donc rien a deposer a la main, mais le depot etant prive il faut y avoir
+ouvert une session (huggingface-cli login, ou le secret HF_TOKEN).
+
+Usage :
+    python train_byt5.py 2000    essai rapide, valide l'enchainement en minutes
+    python train_byt5.py         entrainement complet
 """
 
 import sys
 
 import pandas as pd
 import torch
+from huggingface_hub import hf_hub_download
 from torch.utils.data import Dataset
 from transformers import (AutoTokenizer, AutoModelForSeq2SeqLM,
                           DataCollatorForSeq2Seq, EarlyStoppingCallback,
@@ -24,6 +32,7 @@ from transformers import (AutoTokenizer, AutoModelForSeq2SeqLM,
 
 MODELE = "google/byt5-small"
 TRAIN, DEV, TEST = "train.csv", "dev.csv", "test_real.csv"
+DEPOT = "sawti-nlp/darija-arabizi-corpus"
 SORTIE_MODELE = "byt5-arabizi"
 SORTIE_PREDICTIONS = "byt5_predictions.csv"
 
@@ -64,14 +73,27 @@ class Corpus(Dataset):
 
 
 def charger(chemin, echantillon=None):
-    """Lit un fichier de paires, eventuellement reduit pour un essai rapide."""
-    d = pd.read_csv(chemin)
+    """Lit un fichier de paires, eventuellement reduit pour un essai rapide.
+
+    Le fichier est cherche dans le repertoire courant, puis sur le depot Hugging
+    Face du projet. Cela evite tout depot manuel sur une machine jetable comme
+    Kaggle ou Colab.
+    """
+    try:
+        d = pd.read_csv(chemin)
+    except FileNotFoundError:
+        d = pd.read_csv(hf_hub_download(DEPOT, f"splits/{chemin}",
+                                        repo_type="dataset"))
     return d.head(echantillon) if echantillon else d
 
 
 if __name__ == "__main__":
     echantillon = int(sys.argv[1]) if len(sys.argv) > 1 else None
-    if not torch.cuda.is_available():
+    if torch.cuda.is_available():
+        PRECISION = "bf16" if torch.cuda.is_bf16_supported() else "fp16"
+        print(f"GPU : {torch.cuda.get_device_name(0)}, precision {PRECISION}")
+    else:
+        PRECISION = "non"
         print("ATTENTION : aucun GPU detecte, l'entrainement sera inexploitable.")
 
     set_seed(GRAINE)
@@ -84,7 +106,7 @@ if __name__ == "__main__":
     print(f"{len(train)} paires d'entrainement, {len(dev)} de validation, "
           f"{len(test)} de test")
 
-    arguments = Seq2SeqTrainingArguments(
+    reglages = dict(
         output_dir=SORTIE_MODELE,
         seed=GRAINE,
         data_seed=GRAINE,
@@ -93,16 +115,24 @@ if __name__ == "__main__":
         per_device_eval_batch_size=TAILLE_LOT,
         gradient_accumulation_steps=PAS_ACCUMULATION,
         learning_rate=TAUX_APPRENTISSAGE,
-        eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         save_total_limit=2,
         logging_steps=200,
-        bf16=torch.cuda.is_available(),
+        # Le T4 de Colab et de Kaggle est en architecture Turing : il ne gere
+        # pas bf16, seulement fp16. Choisir selon la carte et non en aveugle.
+        bf16=PRECISION == "bf16",
+        fp16=PRECISION == "fp16",
         report_to=[],
     )
+    # transformers a renomme evaluation_strategy en eval_strategy ; accepter les
+    # deux evite un echec de lancement sur une version plus ancienne.
+    try:
+        arguments = Seq2SeqTrainingArguments(eval_strategy="epoch", **reglages)
+    except TypeError:
+        arguments = Seq2SeqTrainingArguments(evaluation_strategy="epoch", **reglages)
 
     entraineur = Seq2SeqTrainer(
         model=modele,

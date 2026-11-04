@@ -5,5 +5,5 @@
 # des versions epinglees, et celles de torch dependent de la version de CUDA
 # disponible sur la machine retenue.
 torch>=2.1
-transformers>=4.40
+transformers>=4.41
 accelerate>=0.30
