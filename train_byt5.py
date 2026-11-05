@@ -90,8 +90,14 @@ def charger(chemin, echantillon=None):
 if __name__ == "__main__":
     echantillon = int(sys.argv[1]) if len(sys.argv) > 1 else None
     if torch.cuda.is_available():
-        PRECISION = "bf16" if torch.cuda.is_bf16_supported() else "fp16"
-        print(f"GPU : {torch.cuda.get_device_name(0)}, precision {PRECISION}")
+        # torch.cuda.is_bf16_supported() accepte l'emulation par defaut et
+        # repond True sur un T4, qui n'a pourtant aucune unite bf16 : le calcul
+        # retombe alors sur des chemins lents. La capacite de calcul tranche
+        # sans ambiguite, bf16 n'arrivant qu'avec Ampere (8.0).
+        majeure, mineure = torch.cuda.get_device_capability()
+        PRECISION = "bf16" if majeure >= 8 else "fp16"
+        print(f"GPU : {torch.cuda.get_device_name(0)} "
+              f"(capacite {majeure}.{mineure}), precision {PRECISION}")
     else:
         PRECISION = "non"
         print("ATTENTION : aucun GPU detecte, l'entrainement sera inexploitable.")
