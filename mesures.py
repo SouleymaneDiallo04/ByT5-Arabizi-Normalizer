@@ -97,31 +97,38 @@ def predire(modele, tok, phrases, appareil, faisceaux=1, confiance=False):
     return textes, (confiances if confiance else None)
 
 
-def latence(modele, tok, phrases, appareil):
-    """Chronometre le decodage d'une phrase seule, cas d'usage reel de l'API.
+def latence(modele, tok, phrases, appareil, lot=1):
+    """Chronometre le decodage, phrase par phrase ou par lot.
 
-    Le premier appel paie l'allocation des noyaux de calcul : trois phrases de
-    chauffe sont jetees avant de mesurer.
+    ENF-03 demande les deux : une phrase seule est le cas d'usage de l'API
+    interactive, le lot celui de EF-06. Le premier appel paie l'allocation des
+    noyaux de calcul, deux groupes de chauffe sont donc jetes avant de mesurer.
     """
-    for p in phrases[:3]:
+    groupes = [phrases[i:i + lot] for i in range(0, len(phrases), lot)]
+
+    def passe(groupe):
+        entrees = tok([str(p) for p in groupe], return_tensors="pt",
+                      padding=True, truncation=True,
+                      max_length=MAX_SOURCE).to(appareil)
         with torch.no_grad():
-            modele.generate(**tok(str(p), return_tensors="pt").to(appareil),
-                            max_length=MAX_CIBLE)
+            modele.generate(**entrees, max_length=MAX_CIBLE)
+
+    for groupe in groupes[:2]:
+        passe(groupe)
 
     temps = []
-    for p in phrases:
-        entrees = tok(str(p), return_tensors="pt").to(appareil)
+    for groupe in groupes:
         if appareil == "cuda":
             torch.cuda.synchronize()
         debut = time.perf_counter()
-        with torch.no_grad():
-            modele.generate(**entrees, max_length=MAX_CIBLE)
+        passe(groupe)
         if appareil == "cuda":
             torch.cuda.synchronize()
         temps.append(time.perf_counter() - debut)
 
     s = pd.Series(temps)
-    return {"mediane": s.median(), "p90": s.quantile(0.9), "max": s.max()}
+    return {"mediane": s.median(), "p90": s.quantile(0.9),
+            "par_phrase": s.sum() / max(len(phrases), 1), "groupes": len(groupes)}
 
 
 def taille_mo(modele):
@@ -182,6 +189,15 @@ if __name__ == "__main__":
     test = charger(TEST)
     print(f"jeu de test : {len(test)} phrases")
 
+    # Sous-ensemble des mesures lourdes. Il est tire au hasard et non pris en
+    # tete : le jeu de test est ordonne par theme, et ses premieres lignes sont
+    # celles des themes les plus difficiles, ce qui fausserait les valeurs
+    # absolues. La graine le rend reproductible, comme l'exige ENF-04.
+    echantillon = test.sample(ECHANTILLON_CPU, random_state=GRAINE)
+    phrases_e = echantillon["transliteration"].tolist()
+    reference_e = echantillon["darija_norm"].map(normaliser)
+    latences = []   # (variante, appareil, phrase seule, lot) pour ENF-03
+
     if torch.cuda.is_available():
         modele = AutoModelForSeq2SeqLM.from_pretrained(source).to("cuda").eval()
         print(f"GPU     : {torch.cuda.get_device_name(0)}")
@@ -229,34 +245,48 @@ if __name__ == "__main__":
               "survivrait pas au\n  transfert serait un surajustement du seuil, "
               "pas une mesure de confiance.")
 
+        latences.append(("fp32", "GPU",
+                         latence(modele, tok, phrases_e[:ECHANTILLON_LATENCE],
+                                 "cuda", 1),
+                         latence(modele, tok, phrases_e, "cuda", TAILLE_LOT)))
+
         del modele
         torch.cuda.empty_cache()
     else:
         print("\nAucun GPU : PO-06 et EF-03 sont sautes, ils demandent un "
               "decodage repete.")
 
-    print("\n== ENF-02 et ENF-03  quantification et latence, sur processeur "
-          "==========")
-    echantillon = test.head(ECHANTILLON_CPU)
-    phrases = echantillon["transliteration"].tolist()
-    reference = echantillon["darija_norm"].map(normaliser)
-    print(f"  qualite sur {len(echantillon)} phrases appariees, latence "
-          f"chronometree sur {min(ECHANTILLON_LATENCE, len(phrases))}")
-    print(f"\n{'variante':>10} {'taille Mo':>11} {'CER':>9} {'exactitude':>12} "
-          f"{'latence med':>13} {'p90':>9}")
+    print("\n== ENF-02  cout de la quantification "
+          "=====================================")
+    print(f"  qualite sur {len(echantillon)} phrases tirees au hasard, "
+          f"les memes pour les deux variantes")
+    print(f"\n{'variante':>10} {'taille Mo':>11} {'CER':>9} {'exactitude':>12}")
 
     for nom in ("fp32", "int8"):
         m = AutoModelForSeq2SeqLM.from_pretrained(source).eval()
         if nom == "int8":
             m = quantifier(m)
-        pred, _ = predire(m, tok, phrases, "cpu")
-        q = mesurer(reference, [normaliser(p) for p in pred])
-        l = latence(m, tok, phrases[:ECHANTILLON_LATENCE], "cpu")
+        pred, _ = predire(m, tok, phrases_e, "cpu")
+        q = mesurer(reference_e, [normaliser(p) for p in pred])
         print(f"{nom:>10} {taille_mo(m):>11.0f} {q['cer']:>9.4f} "
-              f"{100 * q['exactitude']:>11.1f}% {l['mediane']:>12.3f}s "
-              f"{l['p90']:>8.3f}s")
+              f"{100 * q['exactitude']:>11.1f}%")
+        latences.append((nom, "CPU",
+                         latence(m, tok, phrases_e[:ECHANTILLON_LATENCE],
+                                 "cpu", 1),
+                         latence(m, tok, phrases_e, "cpu", TAILLE_LOT)))
         del m
 
-    print("\n  ENF-03 exige une latence tenable : la mediane est le ressenti "
-          "courant,\n  le p90 est ce que subit un utilisateur sur dix. C'est "
-          "le p90 qui doit\n  tenir la cible, pas la mediane.")
+    print("\n== ENF-03  latence, pour une phrase et pour un lot "
+          "=======================")
+    print(f"{'variante':>9} {'appareil':>9} | {'phrase med':>11} {'p90':>9} | "
+          f"{'lot de ' + str(TAILLE_LOT):>12} {'p90':>9} {'par phrase':>11}")
+    for nom, appareil, seule, groupe in latences:
+        print(f"{nom:>9} {appareil:>9} | {seule['mediane']:>10.3f}s "
+              f"{seule['p90']:>8.3f}s | {groupe['mediane']:>11.3f}s "
+              f"{groupe['p90']:>8.3f}s {groupe['par_phrase']:>10.3f}s")
+
+    print("\n  La mediane est le ressenti courant, le p90 ce que subit un "
+          "utilisateur\n  sur dix : c'est lui qui doit tenir la cible. La "
+          "colonne par phrase mesure\n  ce que coute une phrase une fois "
+          "amortie dans un lot, soit le regime de\n  EF-06 et non celui de "
+          "l'API interactive.")
