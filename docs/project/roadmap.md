@@ -31,6 +31,7 @@
 
 - [x] Baseline déterministe (`baseline.py`) : CER 0,1735, exactitude 18,2 %
 - [x] Harnais d'évaluation (`evaluate.py`), commande unique et reproductible
+- [x] Score de confiance calibré (EF-03)
 - [ ] Comparaison aux modèles publics de translittération darija sur le même jeu de test
 - [ ] Choix de la configuration de ByT5
 - [ ] Entraînement de référence

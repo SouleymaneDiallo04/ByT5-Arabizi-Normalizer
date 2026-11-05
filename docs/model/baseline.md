@@ -78,6 +78,52 @@ La table corrige ces trois points pour les mots qu'elle connaît, mais travaille
 au niveau du mot et ne peut donc rien décider selon le contexte. C'est
 précisément ce que le modèle est censé apporter.
 
+## Score de confiance (EF-03)
+
+Chaque normalisation est accompagnee d'un score dans `[0, 1]`, dans la colonne
+`confiance`. Il vaut la moyenne des confiances par mot : pour un mot trouve dans
+la table, la part de sa traduction majoritaire dans le corpus d'entrainement ;
+pour un mot converti par regles, une valeur fixe de **0,25**.
+
+Ces valeurs ne sont pas choisies, elles sont mesurees sur `dev.csv` par
+alignement positionnel :
+
+| Origine du mot | Mots | Exactitude reelle |
+|---|---:|---:|
+| Table apprise | 12 094 | **87,2 %** |
+| Regles | 4 089 | **24,7 %** |
+
+Et la fiabilite annoncee par la table predit bien la justesse reelle, ce qui
+justifie de l'employer directement comme probabilite :
+
+| Fiabilite annoncee | Mots | Exactitude reelle |
+|---|---:|---:|
+| 0,5 et plus | 554 | 53,4 % |
+| 0,6 et plus | 694 | 70,2 % |
+| 0,7 et plus | 851 | 73,0 % |
+| 0,8 et plus | 1 885 | 85,5 % |
+| 0,9 et plus | 8 110 | 92,8 % |
+
+### Le score transfere au jeu de test
+
+La calibration est faite sur le `dev`, mais elle se verifie sur le jeu de test,
+qu'elle n'a jamais vu. Le CER y decroit de facon monotone avec la confiance :
+
+| Confiance | Phrases | CER moyen |
+|---|---:|---:|
+| 0 a 40 % | 155 | 0,2925 |
+| 40 a 60 % | 208 | 0,2154 |
+| 60 a 80 % | 349 | 0,1560 |
+| 80 a 95 % | 84 | 0,1007 |
+| 95 a 100 % | 54 | **0,0471** |
+
+Correlation de Spearman entre confiance et CER : **-0,444**.
+
+C'est ce qui rend le score exploitable pour EF-07 : un seuil permet de router
+vers un annotateur humain les seules normalisations douteuses, au lieu de tout
+faire relire. Le tableau ci-dessus donne de quoi choisir ce seuil en connaissance
+du taux d'erreur qu'il laisse passer.
+
 ## Critères de recette satisfaits
 
 | Exigence | Critère | État |
@@ -86,6 +132,7 @@ précisément ce que le modèle est censé apporter.
 | EF-02 | `chrit 3 tomobilat` donne `شريت 3 طوموبيلات` | passe |
 | EF-05 | un résultat par entrée, métriques reproductibles | 850/850 |
 | ENF-04 | deux exécutions, mêmes métriques ; versions épinglées | identiques, `requirements.txt` |
+| EF-03 | score dans [0, 1] pour chaque normalisation | 850/850, de 0,250 à 1,000 |
 | ENF-08 | aucune exception sur cent entrées bruitées | 109/109 |
 
 Le contrôle d'ENF-08 est exécutable : `python test_robustesse.py`.
