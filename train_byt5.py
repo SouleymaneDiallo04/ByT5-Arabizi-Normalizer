@@ -19,6 +19,7 @@ Usage :
     python train_byt5.py         entrainement complet
 """
 
+import os
 import sys
 
 import pandas as pd
@@ -31,10 +32,24 @@ from transformers import (AutoTokenizer, AutoModelForSeq2SeqLM,
                           set_seed)
 
 MODELE = "google/byt5-small"
-TRAIN, DEV, TEST = "train.csv", "dev.csv", "test_real.csv"
+DEV, TEST = "dev.csv", "test_real.csv"
 DEPOT = "sawti-nlp/darija-arabizi-corpus"
-SORTIE_MODELE = "byt5-arabizi"
-SORTIE_PREDICTIONS = "byt5_predictions.csv"
+
+# Deux variables d'environnement, et deux seulement, pour rendre une experience
+# comparable a la precedente sans toucher au code :
+#
+#   TRAIN_CSV  le fichier de paires, par exemple train_augmente.csv
+#   MAX_PAS    un nombre de pas d'optimisation fixe, qui prime sur les epoques
+#
+# MAX_PAS existe pour comparer a budget de calcul constant. Trois epoques sur
+# 186 861 paires font 8 760 pas ; relancer sur un corpus augmente avec le meme
+# nombre de pas garantit que chaque phrase arabe est vue autant de fois, et que
+# la seule variable qui change est le nombre de graphies par phrase. Comparer a
+# nombre d'epoques egal melangerait l'effet de la variation et celui de la duree.
+TRAIN = os.environ.get("TRAIN_CSV", "train.csv")
+MAX_PAS = int(os.environ.get("MAX_PAS", 0))
+SORTIE_MODELE = os.environ.get("SORTIE_MODELE", "byt5-arabizi")
+SORTIE_PREDICTIONS = os.environ.get("SORTIE_PREDICTIONS", "byt5_predictions.csv")
 
 # Longueurs fixees sur la distribution reelle des octets du corpus : l'entree
 # ne depasse jamais 178 octets, la cible 280. Ces valeurs couvrent donc 100 %
@@ -109,20 +124,32 @@ if __name__ == "__main__":
     train = charger(TRAIN, echantillon)
     dev = charger(DEV, echantillon and max(echantillon // 10, 1))
     test = charger(TEST)
-    print(f"{len(train)} paires d'entrainement, {len(dev)} de validation, "
-          f"{len(test)} de test")
+    print(f"{TRAIN} : {len(train)} paires d'entrainement, {len(dev)} de "
+          f"validation, {len(test)} de test")
+
+    # A pas fixe, le rythme d'evaluation est cale sur le tiers du parcours, pour
+    # rendre trois points de controle comme le font trois epoques : l'arret
+    # precoce et la selection du meilleur modele restent alors comparables.
+    RYTHME = "steps" if MAX_PAS else "epoch"
+    if MAX_PAS:
+        cadence = dict(max_steps=MAX_PAS, save_strategy="steps",
+                       save_steps=max(MAX_PAS // 3, 1),
+                       eval_steps=max(MAX_PAS // 3, 1))
+        print(f"budget fixe a {MAX_PAS} pas, controle tous les "
+              f"{max(MAX_PAS // 3, 1)}")
+    else:
+        cadence = dict(num_train_epochs=EPOQUES, save_strategy="epoch")
 
     reglages = dict(
         output_dir=SORTIE_MODELE,
         seed=GRAINE,
         data_seed=GRAINE,
-        num_train_epochs=EPOQUES,
         per_device_train_batch_size=TAILLE_LOT,
         per_device_eval_batch_size=TAILLE_LOT,
         gradient_accumulation_steps=PAS_ACCUMULATION,
         learning_rate=TAUX_APPRENTISSAGE,
-        save_strategy="epoch",
         load_best_model_at_end=True,
+        **cadence,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         save_total_limit=2,
@@ -136,9 +163,9 @@ if __name__ == "__main__":
     # transformers a renomme evaluation_strategy en eval_strategy ; accepter les
     # deux evite un echec de lancement sur une version plus ancienne.
     try:
-        arguments = Seq2SeqTrainingArguments(eval_strategy="epoch", **reglages)
+        arguments = Seq2SeqTrainingArguments(eval_strategy=RYTHME, **reglages)
     except TypeError:
-        arguments = Seq2SeqTrainingArguments(evaluation_strategy="epoch", **reglages)
+        arguments = Seq2SeqTrainingArguments(evaluation_strategy=RYTHME, **reglages)
 
     entraineur = Seq2SeqTrainer(
         model=modele,
