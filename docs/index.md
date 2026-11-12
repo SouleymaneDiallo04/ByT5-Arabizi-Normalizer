@@ -47,6 +47,7 @@ getting-started/quickstart
 
 project/overview
 project/roadmap
+project/decisions
 project/contributors
 ```
 
