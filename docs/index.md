@@ -71,6 +71,13 @@ model/evaluation
 ```
 
 ```{toctree}
+:maxdepth: 2
+:caption: Annotation
+
+annotation/protocole
+```
+
+```{toctree}
 :maxdepth: 1
 :caption: Ressources
 
