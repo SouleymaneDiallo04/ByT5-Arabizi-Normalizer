@@ -198,7 +198,10 @@ if __name__ == "__main__":
                   f"{ecrites} paires cumulees")
 
     print(f"\n{documents} documents apparies par identifiant")
-    print(f"{structure} ont la meme structure de lignes "
+    # Ce compteur dit combien de documents ont rendu au moins une paire, et
+    # non combien avaient la meme structure de lignes : un document bien
+    # structure dont toutes les lignes sont filtrees n'y figure pas.
+    print(f"{structure} ont rendu au moins une paire "
           f"({100 * structure / max(documents, 1):.1f} %)")
     print(f"{ecrites} paires retenues, soit "
           f"{ecrites / max(documents, 1):.1f} par document")
