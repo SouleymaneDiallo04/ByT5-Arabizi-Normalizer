@@ -21,9 +21,18 @@ Trois selections sont comparees, de la plus simple a la plus reglee.
   Melange regle        combinaison du score du modele, du consensus et d'un
                        modele de langue sur les cibles d'entrainement.
 
-Les poids du melange sont regles sur le jeu de developpement et appliques tels
-quels au jeu de test. Les regler sur le test reviendrait a mesurer son propre
-reglage.
+Les poids sont regles deux fois, et c'est leur comparaison qui est
+l'experience. Une fois sur le jeu de developpement, qui vient des sources
+d'entrainement et ou le modele atteint 0,0473 de CER ; une fois sur un
+prelevement du jeu de test, ou il est a 0,1087. Un premier essai, regle sur le
+seul developpement, avait echoue : les poids appris sur des faisceaux ou le
+premier choix est presque toujours bon ne transferaient pas.
+
+Un ecart entre les deux lignes accuse le jeu de reglage. Leur egalite accuse
+les signaux eux-memes, et ferme la piste.
+
+Dans les deux cas l'evaluation porte sur les 678 phrases qui n'ont servi a
+aucun reglage.
 
 Le plafond, soit le choix parfait parmi les huit, vaut 0,0635 de CER. Il est
 inatteignable puisqu'il suppose de connaitre la reponse ; il borne ce que
@@ -46,12 +55,15 @@ from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 from baseline import mots
+from decouper_test import prelever
 from evaluate import normaliser, distance, mesurer
 
 MODELE = "sawti-nlp/byt5-arabizi-normalizer"
 DEPOT_DONNEES = "sawti-nlp/darija-arabizi-corpus"
 TRAIN, DEV, TEST = "train.csv", "dev.csv", "test_real.csv"
 SORTIE = "byt5_reordonne.csv"
+REFERENCE = "byt5_predictions.csv"
+REFERENCE_RESTREINTE = "byt5_predictions_evaluation.csv"
 
 MAX_SOURCE, MAX_CIBLE = 192, 288
 TAILLE_LOT = 8
@@ -190,45 +202,97 @@ if __name__ == "__main__":
     langue = modele_de_langue(charger(TRAIN)["darija_norm"])
     print(f"  {langue[2]} formes, {len(langue[1])} bigrammes")
 
-    jeux = {}
-    for nom, chemin, taille in [("dev", DEV, ECHANTILLON_DEV), ("test", TEST, None)]:
-        d = charger(chemin, taille)
-        debut = time.perf_counter()
-        listes, scores = hypotheses(modele, tok, d["transliteration"].tolist(), "cuda")
-        print(f"{nom} : {len(d)} phrases decodees en "
-              f"{time.perf_counter() - debut:.0f} s")
-        jeux[nom] = (d, listes, scores, d["darija_norm"].map(normaliser).tolist(),
-                     traits(listes, scores, langue))
+    # Le jeu de test est decode une seule fois, puis partage entre reglage et
+    # evaluation : decoder deux fois les memes phrases couterait le double sans
+    # rien apporter.
+    test = charger(TEST)
+    reglage, evaluation = prelever(test)
+    debut = time.perf_counter()
+    listes_t, scores_t = hypotheses(modele, tok, test["transliteration"].tolist(), "cuda")
+    print(f"test : {len(test)} phrases decodees en {time.perf_counter() - debut:.0f} s")
+    traits_t = traits(listes_t, scores_t, langue)
+    refs_t = test["darija_norm"].map(normaliser).tolist()
+    rang = {ident: i for i, ident in enumerate(test["id"])}
+    i_reglage = [rang[x] for x in reglage["id"]]
+    i_evaluation = [rang[x] for x in evaluation["id"]]
 
-    # Reglage des poids sur le dev uniquement.
-    d, listes, scores, references, t = jeux["dev"]
+    dev = charger(DEV, ECHANTILLON_DEV)
+    debut = time.perf_counter()
+    listes_d, scores_d = hypotheses(modele, tok, dev["transliteration"].tolist(), "cuda")
+    print(f"dev  : {len(dev)} phrases decodees en {time.perf_counter() - debut:.0f} s")
+    traits_d = traits(listes_d, scores_d, langue)
+    refs_d = dev["darija_norm"].map(normaliser).tolist()
+
     pas = int(round(1 / PAS_GRILLE))
     grille = [(a / pas, b / pas, (pas - a - b) / pas)
               for a in range(pas + 1) for b in range(pas + 1 - a)]
-    meilleur, poids_retenus = None, None
-    for poids in grille:
-        valeur = cer(listes, [choisir(x, poids) for x in t], references)[0]
-        if meilleur is None or valeur < meilleur:
-            meilleur, poids_retenus = valeur, poids
-    print(f"\npoids retenus sur le dev : modele {poids_retenus[0]:.1f}, "
-          f"consensus {poids_retenus[1]:.1f}, langue {poids_retenus[2]:.1f} "
-          f"(CER dev {meilleur:.4f})")
 
-    d, listes, scores, references, t = jeux["test"]
-    premier = cer(listes, [0] * len(listes), references)
-    cons = cer(listes, [choisir(x, (0, 1, 0)) for x in t], references)
-    choix_melange = [choisir(x, poids_retenus) for x in t]
-    melange = cer(listes, choix_melange, references)
-    oracle = cer(listes, [min(range(len(l)), key=lambda i: distance(l[i], r))
-                          for l, r in zip(listes, references)], references)
+    def regler(listes, traits_, references, indices=None):
+        """Cherche les poids qui minimisent le CER sur le jeu fourni."""
+        if indices is not None:
+            listes = [listes[i] for i in indices]
+            traits_ = [traits_[i] for i in indices]
+            references = [references[i] for i in indices]
+        meilleur, retenus = None, None
+        for poids in grille:
+            valeur = cer(listes, [choisir(x, poids) for x in traits_], references)[0]
+            if meilleur is None or valeur < meilleur:
+                meilleur, retenus = valeur, poids
+        return retenus, meilleur
 
-    print(f"\n{'selection':<26} {'CER':>9} {'exactitude':>12}")
-    for nom, (c, e) in [("premiere hypothese", premier), ("consensus seul", cons),
-                        ("melange regle", melange), ("choix parfait (plafond)", oracle)]:
-        print(f"{nom:<26} {c:>9.4f} {100 * e:>11.1f}%")
+    # Deux reglages, et c'est leur comparaison qui est l'experience. Le premier
+    # sur le jeu de developpement, qui vient des sources d'entrainement et ou le
+    # modele reussit deux fois et demie mieux ; le second sur un prelevement du
+    # jeu de test, donc sur la distribution ou le probleme existe reellement.
+    p_dev, c_dev = regler(listes_d, traits_d, refs_d)
+    p_reg, c_reg = regler(listes_t, traits_t, refs_t, i_reglage)
+    print(f"\n{'reglage':<22} {'modele':>7} {'consensus':>10} {'langue':>7} "
+          f"{'CER sur son jeu':>17}")
+    for nom, p, c in [("developpement", p_dev, c_dev), ("prelevement du test", p_reg, c_reg)]:
+        print(f"{nom:<22} {p[0]:>7.1f} {p[1]:>10.1f} {p[2]:>7.1f} {c:>17.4f}")
 
-    sortie = d[COLONNES].copy()
-    sortie["prediction"] = [liste[i] for liste, i in zip(listes, choix_melange)]
+    sous = lambda s: [s[i] for i in i_evaluation]
+    listes_e, traits_e, refs_e = sous(listes_t), sous(traits_t), sous(refs_t)
+    choix_reg = [choisir(x, p_reg) for x in traits_e]
+
+    lignes = [
+        ("premiere hypothese", [0] * len(listes_e)),
+        ("consensus seul, sans reglage", [choisir(x, (0, 1, 0)) for x in traits_e]),
+        ("melange regle sur le dev", [choisir(x, p_dev) for x in traits_e]),
+        ("melange regle sur le test", choix_reg),
+        ("choix parfait (plafond)",
+         [min(range(len(l)), key=lambda i: distance(l[i], r))
+          for l, r in zip(listes_e, refs_e)]),
+    ]
+    print(f"\nmesure sur les {len(listes_e)} phrases d'evaluation")
+    print(f"{'selection':<32} {'CER':>9} {'exactitude':>12}")
+    for nom, choix in lignes:
+        c, e = cer(listes_e, choix, refs_e)
+        print(f"{nom:<32} {c:>9.4f} {100 * e:>11.1f}%")
+
+    print(f"\n  Comparer les deux lignes de melange repond a une seule question :"
+          f"\n  l'echec du reordonnancement venait-il des signaux ou du jeu sur "
+          f"lequel\n  on les a pondere ? Un ecart entre elles accuse le jeu, "
+          f"leur egalite\n  accuse les signaux.")
+    print(f"\n  Prudence : les poids du test sont regles sur {len(i_reglage)} "
+          f"phrases seulement.\n  Comparer le CER de reglage ci-dessus a celui "
+          f"d'evaluation dit si le\n  reglage a capte du signal ou du bruit.")
+
+    sortie = evaluation[COLONNES].copy()
+    sortie["prediction"] = [liste[i] for liste, i in zip(listes_e, choix_reg)]
     sortie.to_csv(SORTIE, index=False, encoding="utf-8-sig")
-    print(f"\n{SORTIE} ecrit. Comparer categorie par categorie :")
-    print(f"  python erreurs.py {SORTIE} byt5_predictions.csv")
+    print(f"\n{SORTIE} ecrit, {len(sortie)} phrases.")
+
+    # La reference du run glouton porte sur les 850 phrases. La ventiler contre
+    # 678 comparerait deux populations differentes et rendrait des ecarts qui
+    # n'existent pas : une copie restreinte aux memes phrases est donc ecrite.
+    try:
+        reference = pd.read_csv(REFERENCE)
+    except FileNotFoundError:
+        print(f"  {REFERENCE} absent : deposer le fichier pour pouvoir comparer.")
+    else:
+        restreinte = reference[reference["id"].isin(set(evaluation["id"]))]
+        restreinte.to_csv(REFERENCE_RESTREINTE, index=False, encoding="utf-8-sig")
+        print(f"  {REFERENCE_RESTREINTE} ecrit, {len(restreinte)} phrases, "
+              f"pour comparer a population egale.")
+        print(f"\n  python erreurs.py {SORTIE} {REFERENCE_RESTREINTE}")
