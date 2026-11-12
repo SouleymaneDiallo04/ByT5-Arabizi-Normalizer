@@ -32,6 +32,7 @@ Usage :
     python Extractor/extract_nilechat.py            tout, 40 a 60 min
 """
 
+import collections
 import re
 import sys
 
@@ -40,7 +41,13 @@ import requests
 from huggingface_hub import get_token
 
 ARABIZI = "UBC-NLP/nilechat-arabizi-mor"
-ARABES = ["UBC-NLP/nilechat-fw-edu-mor", "UBC-NLP/nilechat-lhv-mor"]
+# nilechat-fw-edu-mor, 5 247 498 documents, est ecarte : c'est du texte web
+# educatif, massivement en arabe standard. L'apercu en a tire des citations
+# scientifiques, des metadonnees de revue et des phrases ou le modele a traduit
+# au lieu de translitterer, laissant une cible en arabe standard face a un
+# arabizi darija. Tout le rebut venait de la. nilechat-lhv-mor est
+# conversationnel, et toutes les bonnes paires en venaient.
+ARABES = ["UBC-NLP/nilechat-lhv-mor"]
 SORTIE = "nilechat_translit.csv"
 COLONNES = ["id", "darija", "transliteration", "source"]
 
@@ -53,6 +60,16 @@ APERCU_EXEMPLES = 30
 
 LATIN = re.compile(r"[A-Za-z]")
 ARABE = re.compile(r"[؀-ۿ]")
+# Marqueurs propres au darija, absents de l'arabe standard : ce dernier ecrit
+# الذي et non اللي, هذا et non هاد, لماذا et non علاش. Le filtre est
+# volontairement severe. Il rejette aussi de bonnes phrases courtes qui n'en
+# portent aucun, comme آمين الله يحفظ بلادنا, et c'est assume : on a des
+# millions de candidats et un deficit de qualite, donc la precision prime sur
+# le rappel. Les mots ambigus, خاص et عند qui existent en standard, sont exclus.
+DARIJA = re.compile("ديال|اللي|كاين|هاد|باش|دابا|بزاف|واش|شنو|غادي|علاش|فين|"
+                    "بغيت|مزيان|واخا|حيت|والو|ماشي|شوية|كيفاش")
+
+MOTIFS = collections.Counter()
 
 
 def entetes():
@@ -85,20 +102,24 @@ def apparier(latin, arabe):
     """
     g, d = lignes(latin), lignes(arabe)
     if len(g) != len(d) or not g:
+        MOTIFS["document ecarte, structure differente"] += 1
         return []
     retenues = []
     for a, b in zip(g, d):
         oa, ob = len(a.encode()), len(b.encode())
         if oa > MAX_SOURCE or ob > MAX_CIBLE:
-            continue
-        if not (RATIO_MIN <= oa / max(ob, 1) <= RATIO_MAX):
-            continue
-        # Un cote sans lettre latine, ou l'autre sans lettre arabe, n'est pas
-        # une paire de translitteration : URL, nombres seuls, debris de mise en
-        # page.
-        if not LATIN.search(a) or not ARABE.search(b):
-            continue
-        retenues.append((a, b))
+            MOTIFS["ligne trop longue"] += 1
+        elif not (RATIO_MIN <= oa / max(ob, 1) <= RATIO_MAX):
+            MOTIFS["longueurs desappariees"] += 1
+        elif not LATIN.search(a) or not ARABE.search(b):
+            # URL, nombres seuls, debris de mise en page : ce n'est pas une
+            # paire de translitteration.
+            MOTIFS["pas une paire d_ecritures"] += 1
+        elif not DARIJA.search(b):
+            MOTIFS["cible sans marqueur darija"] += 1
+        else:
+            MOTIFS["retenue"] += 1
+            retenues.append((a, b))
     return retenues
 
 
@@ -154,6 +175,13 @@ if __name__ == "__main__":
           f"({100 * structure / max(documents, 1):.1f} %)")
     print(f"{ecrites} paires retenues, soit "
           f"{ecrites / max(documents, 1):.1f} par document")
+    lignes_vues = sum(n for m, n in MOTIFS.items() if "document" not in m)
+    print()
+    print(f"sort des {lignes_vues} lignes examinees")
+    for motif, n in MOTIFS.most_common():
+        if "document" in motif:
+            continue
+        print(f"  {motif:<32} {n:>8} {100 * n / max(lignes_vues, 1):>6.1f} %")
 
     if apercu:
         print(f"\n--- {APERCU_EXEMPLES} paires au hasard, a lire avant d'aller "
