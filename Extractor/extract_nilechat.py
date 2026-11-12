@@ -225,7 +225,14 @@ if __name__ == "__main__":
               f"relancer sans --apercu.")
         raise SystemExit
 
-    out = pd.DataFrame(paires, columns=["id", "darija", "transliteration", "source"])
-    out.to_csv(SORTIE, index=False, encoding="utf-8-sig")
-    print(f"\n{SORTIE} ecrit : {len(out)} paires")
+    # Le fichier est deja complet : il a ete ecrit au fil des shards. Rien ne
+    # doit etre reecrit ici. Une version precedente y deversait pd.DataFrame
+    # (paires), qui est vide en mode complet, et ecrasait donc en fin de course
+    # tout ce que la boucle avait produit.
+    with open(SORTIE, encoding="utf-8-sig") as f:
+        comptees = sum(1 for _ in f) - 1
+    print(f"\n{SORTIE} : {comptees} lignes relues sur le disque")
+    if comptees != ecrites:
+        raise SystemExit(f"ANOMALIE : {ecrites} paires emises mais {comptees} "
+                         f"relues. Le fichier ne vaut rien, ne pas l'utiliser.")
     print("Ce fichier ne doit pas etre publie : la source arabe est en CC-BY-ND.")
