@@ -151,6 +151,20 @@ if __name__ == "__main__":
               f"{100 * couvertes / max(poids, 1):>10.1f}% "
               f"{distance(reference, p):>9.3f} {med:>11} {p90:>6}")
 
+    # Une distance globale ne dit pas si l'ecart est inoffensif. Un corpus qui
+    # ponctue autrement se normalise, un corpus qui n'ecrit pas les memes mots
+    # ne se rattrape pas. Le detail n'est rendu que pour les candidats : les
+    # temoins alourdiraient sans rien apprendre.
+    for nom, d in jeux[:len(candidats)]:
+        echantillon = d if len(d) <= 40000 else d.sample(40000, random_state=42)
+        p = profil(echantillon["darija"], echantillon["transliteration"])
+        print(f"\ndetail du profil : {nom}")
+        print(f"  {'trait':<30} {'candidat':>10} {'jeu de test':>13} {'ecart':>9}")
+        for trait, valeur in sorted(p.items(),
+                                    key=lambda kv: -abs(kv[1] - reference[kv[0]])):
+            print(f"  {trait:<30} {valeur:>10.3f} {reference[trait]:>13.3f} "
+                  f"{valeur - reference[trait]:>+9.3f}")
+
     print(f"\n  La colonne manquantes donne la part des occurrences absentes du"
           f"\n  corpus actuel que chaque source couvrirait. C'est elle qui dit si"
           f"\n  un candidat comble la lacune mesuree ou ajoute du volume la ou le"
