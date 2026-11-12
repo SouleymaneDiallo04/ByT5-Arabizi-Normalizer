@@ -66,6 +66,7 @@ ARABE = re.compile(r"[؀-ۿ]")
 # portent aucun, comme آمين الله يحفظ بلادنا, et c'est assume : on a des
 # millions de candidats et un deficit de qualite, donc la precision prime sur
 # le rappel. Les mots ambigus, خاص et عند qui existent en standard, sont exclus.
+FIN_PHRASE = re.compile(r"(?<=[.!?؟۔])\s+")
 DARIJA = re.compile("ديال|اللي|كاين|هاد|باش|دابا|بزاف|واش|شنو|غادي|علاش|فين|"
                     "بغيت|مزيان|واخا|حيت|والو|ماشي|شوية|كيفاش")
 
@@ -92,6 +93,16 @@ def lignes(texte):
     return [x.strip() for x in str(texte).split("\n") if x.strip()]
 
 
+def phrases(ligne):
+    """Decoupe une ligne apres une ponctuation finale suivie d'une espace.
+
+    La condition d'espace evite de couper 140.000 ou 0:53 en deux. Le resultat
+    n'est utilise que si les deux cotes en rendent le meme nombre : c'est le
+    controle qui a valide l'alignement ligne a ligne, applique un cran plus bas.
+    """
+    return [m.strip() for m in FIN_PHRASE.split(ligne.strip()) if m.strip()]
+
+
 def apparier(latin, arabe):
     """Rend les lignes alignees d'un document, ou rien si la structure differe.
 
@@ -104,11 +115,27 @@ def apparier(latin, arabe):
     if len(g) != len(d) or not g:
         MOTIFS["document ecarte, structure differente"] += 1
         return []
+    couples = []
+    for ligne_a, ligne_b in zip(g, d):
+        # Plus de la moitie des lignes depassaient les limites du modele et
+        # etaient perdues entieres, alors qu'elles portent plusieurs phrases
+        # exploitables. On les decoupe sous le meme controle que les lignes :
+        # memes comptes des deux cotes, sinon on garde la ligne entiere et elle
+        # sera ecartee par sa longueur.
+        pa, pb = phrases(ligne_a), phrases(ligne_b)
+        if len(pa) > 1 and len(pa) == len(pb):
+            couples.extend(zip(pa, pb))
+            MOTIFS["lignes decoupees en phrases"] += 1
+        else:
+            couples.append((ligne_a, ligne_b))
+            if len(pa) != len(pb):
+                MOTIFS["lignes au decoupage discordant"] += 1
+
     retenues = []
-    for a, b in zip(g, d):
+    for a, b in couples:
         oa, ob = len(a.encode()), len(b.encode())
         if oa > MAX_SOURCE or ob > MAX_CIBLE:
-            MOTIFS["ligne trop longue"] += 1
+            MOTIFS["trop long"] += 1
         elif not (RATIO_MIN <= oa / max(ob, 1) <= RATIO_MAX):
             MOTIFS["longueurs desappariees"] += 1
         elif not LATIN.search(a) or not ARABE.search(b):
