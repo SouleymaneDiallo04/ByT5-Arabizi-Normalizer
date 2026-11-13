@@ -20,6 +20,12 @@ Usage :
 """
 
 import os
+
+# A regler avant que l'allocateur CUDA ne s'initialise. L'echec constate
+# reservait 1,93 Go sans pouvoir les attribuer, pour une demande de 64 Mo :
+# c'est de la fragmentation, et les segments extensibles la reduisent.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 import sys
 
 import pandas as pd
@@ -59,8 +65,18 @@ MAX_CIBLE = 288
 
 GRAINE = 42
 EPOQUES = 3
-TAILLE_LOT = 16
-PAS_ACCUMULATION = 2
+# Le lot par carte et l'accumulation sont reglables, le produit des deux fois
+# le nombre de cartes devant rester constant pour que le protocole tienne : un
+# lot effectif de 64 fait de 8 760 pas exactement 560 640 passages.
+#
+# Pourquoi ils le sont devenus. Un corpus de phrases longues sature la memoire
+# la ou le corpus d'origine passait : nilechat fait 91 octets en mediane contre
+# 21 pour doda_synthetic, et le remplissage dynamique aligne chaque lot sur sa
+# phrase la plus longue. C'est la longueur qui sature, pas le volume. Diviser
+# le lot par carte par deux et doubler l'accumulation halve les activations
+# sans rien changer a ce que le modele voit.
+TAILLE_LOT = int(os.environ.get("TAILLE_LOT", 16))
+PAS_ACCUMULATION = int(os.environ.get("PAS_ACCUMULATION", 2))
 TAUX_APPRENTISSAGE = 3e-4
 PATIENCE = 2
 # Decodage glouton : PO-06 doit etre arbitre sur mesure reelle, et la recherche
@@ -130,6 +146,15 @@ if __name__ == "__main__":
     # A pas fixe, le rythme d'evaluation est cale sur le tiers du parcours, pour
     # rendre trois points de controle comme le font trois epoques : l'arret
     # precoce et la selection du meilleur modele restent alors comparables.
+    # Le lot effectif est ce qui rend deux experiences comparables, et il doit
+    # donc etre lisible dans le journal et non deduit des constantes.
+    cartes = max(torch.cuda.device_count(), 1)
+    effectif = TAILLE_LOT * PAS_ACCUMULATION * cartes
+    print(f"lot effectif : {TAILLE_LOT} par carte x {PAS_ACCUMULATION} "
+          f"d'accumulation x {cartes} carte(s) = {effectif}")
+    if MAX_PAS:
+        print(f"soit {MAX_PAS * effectif} passages pour {MAX_PAS} pas")
+
     RYTHME = "steps" if MAX_PAS else "epoch"
     if MAX_PAS:
         cadence = dict(max_steps=MAX_PAS, save_strategy="steps",
