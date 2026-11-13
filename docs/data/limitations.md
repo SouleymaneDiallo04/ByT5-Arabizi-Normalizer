@@ -10,5 +10,12 @@
   `darija_all.csv`.
 - **Pas de jeu de test réel.** Le corpus ne contient ni messages mixtes
   (darija et français dans la même phrase) ni vrais messages de messagerie.
+
+
+
+  
 - **Licences hétérogènes.** Voir {doc}`sources`. Le corpus fusionné est publié
   sous CC BY-NC 4.0, la plus restrictive des licences connues.
+
+
+

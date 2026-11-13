@@ -17,6 +17,20 @@ Tout le code est dans le dépôt GitHub :
 depuis le dépôt Hugging Face. `merge_all.py` signale les fichiers absents et
 poursuit avec les autres.
 
+
+### Gestion des ambiguïtés et normalisation par LLM
+
+Après le nettoyage initial, une problématique majeure a persisté et complexifié le projet : la gestion des entrées en Arabizi ayant plusieurs sorties possibles en Darija.
+
+Pour analyser l'ampleur de ce problème, nous avons développé le script de détection dans `Extractor/conflict_detector.py`. Les résultats obtenus sont les suivants :
+- **Total de lignes en conflit :** 21 711
+- **Nombre de formes Arabizi ambiguës :** 9 546
+- **Fichier exporté avec succès :** `arabizi_vers_darija_conflits.xlsx`
+
+Face à ce volume élevé de formes ambiguës et au temps restreint dont nous disposons, une validation humaine de chaque cas s'est avérée impossible. La stratégie adoptée consiste donc à exploiter de **grands modèles de langage (LLM)** pour effectuer directement la normalisation, s'affranchissant ainsi d'une validation manuelle fastidieuse.
+
+
+
 ## Principe
 
 Les scripts lisent directement, à distance, les colonnes utiles des fichiers
