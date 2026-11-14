@@ -26,12 +26,13 @@ import os
 # c'est de la fragmentation, et les segments extensibles la reduisent.
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
+import random
 import sys
 
 import pandas as pd
 import torch
 from huggingface_hub import hf_hub_download
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 from transformers import (AutoTokenizer, AutoModelForSeq2SeqLM,
                           DataCollatorForSeq2Seq, EarlyStoppingCallback,
                           Seq2SeqTrainer, Seq2SeqTrainingArguments,
@@ -109,6 +110,10 @@ class Corpus(Dataset):
         self.entrees = donnees["transliteration"].astype(str).tolist()
         self.cibles = donnees["darija_norm"].astype(str).tolist()
         self.tokenizer = tokenizer
+        # ByT5 code un octet par jeton : la longueur en octets est la longueur
+        # en jetons, et se calcule sans tokeniser 560 000 phrases au demarrage.
+        self.longueurs = [min(len(a.encode()), MAX_SOURCE) + min(len(b.encode()), MAX_CIBLE)
+                          for a, b in zip(self.entrees, self.cibles)]
 
     def __len__(self):
         return len(self.entrees)
@@ -119,6 +124,77 @@ class Corpus(Dataset):
         encode["labels"] = self.tokenizer(self.cibles[i], max_length=MAX_CIBLE,
                                           truncation=True)["input_ids"]
         return encode
+
+
+class ParLongueur(Sampler):
+    """Tire les exemples par lots de longueurs voisines.
+
+    Ecrit ici plutot qu'emprunte a transformers : l'argument group_by_length a
+    disparu de la version installee sur Kaggle, et deviner son remplacant
+    aurait lie le protocole a une version. Ce tirage ne depend de rien.
+
+    Le principe est celui de transformers. On melange, on decoupe en blocs de
+    cinquante lots, on trie chaque bloc par longueur et on le recoupe en lots :
+    chaque lot reunit des phrases semblables, ce qui supprime l'essentiel du
+    remplissage, tandis que le melange initial garde de l'alea entre les blocs.
+    L'ordre des lots est ensuite remelange.
+
+    Le lot le plus long est place en tete. C'est le pire cas pour la memoire :
+    s'il passe au premier pas, le run entier passera, et un manque de memoire se
+    declare en secondes plutot qu'au bout de six heures.
+    """
+
+    BLOCS = 50
+
+    def __init__(self, longueurs, taille_lot, graine):
+        self.longueurs = longueurs
+        self.taille_lot = taille_lot
+        self.graine = graine
+        self.passages = 0
+
+    def __len__(self):
+        return len(self.longueurs)
+
+    def __iter__(self):
+        if self.passages == 0:
+            print(f"tirage par longueur actif : lots de {self.taille_lot}")
+        # Une graine par passage : chaque epoque tire un ordre different, mais
+        # deux runs identiques tirent les memes, ce qu'exige ENF-04.
+        alea = random.Random(self.graine + self.passages)
+        self.passages += 1
+        ordre = list(range(len(self.longueurs)))
+        alea.shuffle(ordre)
+        bloc = self.taille_lot * self.BLOCS
+        lots = []
+        for debut in range(0, len(ordre), bloc):
+            trie = sorted(ordre[debut:debut + bloc], key=lambda i: -self.longueurs[i])
+            lots.extend(trie[k:k + self.taille_lot]
+                        for k in range(0, len(trie), self.taille_lot))
+        pire = max(range(len(lots)), key=lambda b: self.longueurs[lots[b][0]])
+        lots[0], lots[pire] = lots[pire], lots[0]
+        suite = list(range(1, len(lots)))
+        alea.shuffle(suite)
+        for b in [0] + suite:
+            yield from lots[b]
+
+
+class Entraineur(Seq2SeqTrainer):
+    """Seq2SeqTrainer qui accepte un tirage par longueur.
+
+    La surcharge prend ses arguments en vrac parce que la signature de
+    _get_train_sampler a change d'une version a l'autre de transformers. Si une
+    version future ne l'appelait plus, le tirage par longueur serait ignore sans
+    erreur : le message imprime au premier tirage est la pour le reveler.
+    """
+
+    def __init__(self, *args, longueurs=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._longueurs = longueurs
+
+    def _get_train_sampler(self, *args, **kwargs):
+        if self._longueurs is None:
+            return super()._get_train_sampler(*args, **kwargs)
+        return ParLongueur(self._longueurs, self.args.train_batch_size, self.args.seed)
 
 
 def charger(chemin, echantillon=None):
@@ -203,7 +279,6 @@ if __name__ == "__main__":
         greater_is_better=False,
         save_total_limit=2,
         logging_steps=200,
-        group_by_length=GROUPER_LONGUEUR,
         # Le T4 de Colab et de Kaggle est en architecture Turing : il ne gere
         # pas bf16, seulement fp16. Choisir selon la carte et non en aveugle.
         bf16=PRECISION == "bf16",
@@ -214,13 +289,21 @@ if __name__ == "__main__":
     # deux evite un echec de lancement sur une version plus ancienne.
     try:
         arguments = Seq2SeqTrainingArguments(eval_strategy=RYTHME, **reglages)
-    except TypeError:
+    except TypeError as erreur:
+        # Seul le renommage d'evaluation_strategy justifie un second essai.
+        # Toute autre erreur doit remonter telle quelle : la rattraper ici l'a
+        # deja masquee une fois, en remplacant un argument inconnu par un
+        # message trompeur sur un autre.
+        if "eval_strategy" not in str(erreur):
+            raise
         arguments = Seq2SeqTrainingArguments(evaluation_strategy=RYTHME, **reglages)
 
-    entraineur = Seq2SeqTrainer(
+    corpus_train = Corpus(train, tokenizer)
+    entraineur = Entraineur(
+        longueurs=corpus_train.longueurs if GROUPER_LONGUEUR else None,
         model=modele,
         args=arguments,
-        train_dataset=Corpus(train, tokenizer),
+        train_dataset=corpus_train,
         eval_dataset=Corpus(dev, tokenizer),
         data_collator=DataCollatorForSeq2Seq(tokenizer, model=modele),
         # L'arret precoce exige une evaluation, que l'essai de vitesse supprime.
