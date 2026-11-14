@@ -6,7 +6,7 @@
 | `doda_translit.csv` | [`MBZUAI-Paris/DODa-10K`](https://huggingface.co/datasets/MBZUAI-Paris/DODa-10K) | 10 000 | `Darija_arabic` → `darija`, `Darija_latin` → `transliteration` |
 | `daa_pairs_translit.csv` | [`OiQ/daa-pairs`](https://huggingface.co/datasets/OiQ/daa-pairs) | 112 814 | `arabic` → `darija`, `arabizi` → `transliteration` |
 | `doda_synthetic_translit.csv` | [`Haitam03/doda_synthetic`](https://huggingface.co/datasets/Haitam03/doda_synthetic) | 64 260 | `corrected_output` → `darija`, `latin_input` → `transliteration` |
-| `doda_audio_v3_translit.csv` | [`atlasia/DODa-audio-dataset-V3`](https://huggingface.co/datasets/atlasia/DODa-audio-dataset-V3) | 11 517 | `darija_Arab_new` → `darija`, `darija_Latn` → `transliteration` |
+| `doda_audio_translit.csv` | [`atlasia/DODa-audio-dataset`](https://huggingface.co/datasets/atlasia/DODa-audio-dataset) | 12 743 | `darija_Arab_new` → `darija`, `darija_Latn` → `transliteration` |
 
 ## darija-youtube-dataset
 
@@ -48,10 +48,24 @@ Appartenant à la famille DODa, cette source recoupe les deux autres : 1 055
 phrases communes avec `DODa-10K` et 1 832 avec `doda_synthetic`, mesurées après
 neutralisation de la ponctuation et de la vocalisation.
 
-```{note}
-Aucun script d'extraction n'existe encore pour cette source dans `Extractor/` :
-son CSV a été produit en dehors du dépôt. Le pipeline n'est donc pas entièrement
-reproductible en l'état.
+```{important}
+`Extractor/extract_doda_audio.py` remplace cette source par
+[`atlasia/DODa-audio-dataset`](https://huggingface.co/datasets/atlasia/DODa-audio-dataset),
+qui la contient entièrement : les 8 697 paires conservées de la V3 s'y
+retrouvent toutes, et **3 668 s'y ajoutent**. Le pipeline redevient
+intégralement reproductible, ce qu'exige ENF-04.
+
+Les deux colonnes arabes constituent par ailleurs une ressource en elles-mêmes.
+`darija_Arab_old` est une transcription phonétique, `darija_Arab_new` une
+orthographe conventionnelle, et elles divergent sur **12 052 phrases sur
+12 721**. Leur alignement rend 1 999 substitutions attestées — `لييا` → `ليا`,
+`هووا` → `هو`, `والاكين` → `ولكن` — soit une table de normalisation produite par
+des annotateurs et non par une heuristique.
+
+Appliquée des deux côtés au moment de la mesure, elle vaut +3,5 points
+d'exactitude au modèle et +4,6 à la baseline, pour un CER légèrement dégradé.
+Elle **n'est pas retenue** comme métrique principale pour cette raison même ;
+l'arbitrage est détaillé en PO-01 du cahier des charges.
 ```
 
 ```{warning}
