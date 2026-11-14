@@ -10,6 +10,92 @@ Les plus récentes d'abord.
 
 ---
 
+## 14 novembre 2026 — Le mélange avec nilechat améliore le CER de 6,5 %
+
+**Résultat.** Premier gain mesuré depuis l'entraînement initial, sur les 678
+phrases d'évaluation.
+
+| modèle | CER | exactitude |
+|---|---:|---:|
+| ByT5, corpus d'origine | 0,1087 | 29,4 % |
+| ByT5, augmentation de graphies | 0,1085 | 29,5 % |
+| **ByT5, mélange avec nilechat** | **0,1016** | **29,6 %** |
+
+**Protocole.** Budget identique à la référence : 8 760 pas de 64. Mélange
+50/50, si bien que le corpus d'origine n'est vu que **1,5 fois au lieu de 3,0**,
+et que 8,9 % du candidat seulement est montré. C'était délibéré : un gain obtenu
+avec moins d'exposition aux bonnes données ne peut venir que du candidat.
+
+Le lot par carte est passé de 16 à 8, avec 4 pas d'accumulation au lieu de 2.
+Les phrases longues de nilechat — 91 octets en médiane contre 21 pour
+`doda_synthetic` — saturaient la mémoire au premier pas. Le lot effectif reste
+64, ce que le script imprime désormais.
+
+**Le corpus.** `UBC-NLP/nilechat-arabizi-mor` n'a pas de colonne arabe ; il a
+été joint à sa source `nilechat-lhv-mor` sur les identifiants. L'autre source,
+`fw-edu`, a été écartée : texte web éducatif massivement en arabe standard, où
+le modèle de translittération avait parfois **traduit** vers le darija au lieu
+de translittérer. 3 282 816 paires au final, alignées à 99,8 % au niveau de la
+phrase. **Leur arabizi est produit par un modèle de langue**, et ne doit jamais
+être présenté comme écrit par des humains.
+
+Mesuré avant tout entraînement : **40,7 %** du vocabulaire absent de notre
+corpus y figure, quand toutes nos sources sont à 0 %. La distance orthographique
+au jeu de test, 1,507, est à 0,790 de la ponctuation ; hors ponctuation, l'écart
+côté cible n'est que de 0,071.
+
+Au mélange, la purge a retiré **628 fuites vers le jeu de test** et 134 029
+doublons internes, avec des chiffres identiques d'un run à l'autre.
+
+**Licence.** La source arabe est en CC-BY-ND, qui interdit de distribuer une
+œuvre dérivée. Le fichier de paires ne se publie pas ; seul le script
+d'extraction l'est.
+
+**Où est le gain.** Voyelles longues, −90 opérations, soit **78 % du gain**. La
+catégorie que l'augmentation de graphies n'avait pas su bouger. Ponctuation et
+espaces, −30 chacune.
+
+**Ce qui ne s'est pas passé comme prévu.** Le vocabulaire manquant ne progresse
+que de 23,0 à 26,1 % de mots retrouvés, contre 73,4 à 74,6 % pour les mots déjà
+connus : le gain porte sur l'écriture de mots connus, rendue plus cohérente, et
+non sur du vocabulaire neuf. Le modèle n'ayant vu que 8,9 % du candidat, la
+couverture mesurée sur l'ensemble n'a pas pu agir.
+
+Deux prédictions démenties au passage. La ponctuation devait se dégrader à
+cause des virgules de nilechat, présentes dans 79,3 % de ses phrases ; elle
+s'améliore. Et le gain devait se concentrer sur les formes inconnues.
+
+**Une régression réelle.** Le modèle laisse davantage de français en latin —
+`kan9ra l'informatique f la fac` rendu `كنقرا l'informatique ف la fac` — soit 7
+phrases au lieu de 4 et +40 opérations. Hypothèse non vérifiée : moins
+d'exposition au corpus d'origine, qui porte les exemples de translittération du
+français.
+
+**Une régression apparente.** Tetouan affiche +25 % de CER. C'est **7
+opérations sur 48 phrases**, portées par trois mots isolés : du bruit, pas un
+résultat.
+
+**Suite.** Rendre au corpus d'origine ses trois passages et montrer davantage
+de nilechat — les deux problèmes ont ce même remède. L'obstacle est le temps :
+4,31 s par pas avec le lot réduit, et ce run a duré environ 10 h 30 pour une
+limite de session à 12 h.
+
+---
+
+## 14 novembre 2026 — Le profil orthographique est redéfini
+
+**Correction.** La mesure de distance orthographique au jeu de test a été
+réécrite dans `profil_corpus.py`, sur dix traits nommés, et recalculée pour
+toutes les sources. Son classement **contredit** une mesure antérieure qui
+plaçait `daa-pairs` comme la source la plus proche du jeu de test : elle en est
+ici l'une des plus lointaines, à 1,087, et `doda_synthetic` la plus proche, à
+0,229.
+
+L'ancienne mesure n'avait pas été écrite et ne peut être reproduite. Les deux
+séries ne doivent pas être citées ensemble ; seule la nouvelle fait foi.
+
+---
+
 ## 12 novembre 2026 — Le réordonnancement des hypothèses est écarté
 
 **Décision.** Le décodage glouton reste la méthode de production. Quatre
