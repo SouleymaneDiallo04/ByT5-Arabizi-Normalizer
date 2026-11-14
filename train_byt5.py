@@ -57,6 +57,24 @@ MAX_PAS = int(os.environ.get("MAX_PAS", 0))
 SORTIE_MODELE = os.environ.get("SORTIE_MODELE", "byt5-arabizi")
 SORTIE_PREDICTIONS = os.environ.get("SORTIE_PREDICTIONS", "byt5_predictions.csv")
 
+# Grouper les lots par longueur. Le remplissage dynamique aligne chaque lot sur
+# sa phrase la plus longue ; tirer au hasard dans un corpus qui melange nos
+# phrases de 21 octets et celles de 91 de nilechat fait calculer l'essentiel du
+# lot sur du remplissage. Le run du melange a tourne a 4,31 s par pas, contre
+# 3,14 pour le corpus d'origine, et a frole la limite de session.
+#
+# Desactive par defaut pour que les runs anterieurs restent rejouables a
+# l'identique : grouper change l'ordre de presentation des exemples, donc la
+# trajectoire d'optimisation, meme si le modele voit exactement les memes.
+GROUPER_LONGUEUR = os.environ.get("GROUPER_LONGUEUR", "0") == "1"
+
+# Essai de vitesse : quelques pas, ni evaluation, ni sauvegarde, ni prediction,
+# puis la duree par pas. Il sert a choisir une configuration avant d'engager
+# dix heures de calcul. Avec GROUPER_LONGUEUR, transformers place le lot le plus
+# long en tete : si le premier pas passe sans manque de memoire, le run complet
+# passera aussi, et l'essai le prouve en quelques secondes.
+ESSAI_VITESSE = int(os.environ.get("ESSAI_VITESSE", 0))
+
 # Longueurs fixees sur la distribution reelle des octets du corpus : l'entree
 # ne depasse jamais 178 octets, la cible 280. Ces valeurs couvrent donc 100 %
 # des paires sans troncature, en gaspillant le moins de remplissage possible.
@@ -154,9 +172,15 @@ if __name__ == "__main__":
           f"d'accumulation x {cartes} carte(s) = {effectif}")
     if MAX_PAS:
         print(f"soit {MAX_PAS * effectif} passages pour {MAX_PAS} pas")
+    print(f"lots groupes par longueur : {'oui' if GROUPER_LONGUEUR else 'non'}")
 
     RYTHME = "steps" if MAX_PAS else "epoch"
-    if MAX_PAS:
+    if ESSAI_VITESSE:
+        RYTHME = "no"
+        cadence = dict(max_steps=ESSAI_VITESSE, save_strategy="no")
+        print(f"ESSAI DE VITESSE : {ESSAI_VITESSE} pas, sans evaluation ni "
+              f"sauvegarde")
+    elif MAX_PAS:
         cadence = dict(max_steps=MAX_PAS, save_strategy="steps",
                        save_steps=max(MAX_PAS // 3, 1),
                        eval_steps=max(MAX_PAS // 3, 1))
@@ -173,12 +197,13 @@ if __name__ == "__main__":
         per_device_eval_batch_size=TAILLE_LOT,
         gradient_accumulation_steps=PAS_ACCUMULATION,
         learning_rate=TAUX_APPRENTISSAGE,
-        load_best_model_at_end=True,
+        load_best_model_at_end=not ESSAI_VITESSE,
         **cadence,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         save_total_limit=2,
         logging_steps=200,
+        group_by_length=GROUPER_LONGUEUR,
         # Le T4 de Colab et de Kaggle est en architecture Turing : il ne gere
         # pas bf16, seulement fp16. Choisir selon la carte et non en aveugle.
         bf16=PRECISION == "bf16",
@@ -198,9 +223,23 @@ if __name__ == "__main__":
         train_dataset=Corpus(train, tokenizer),
         eval_dataset=Corpus(dev, tokenizer),
         data_collator=DataCollatorForSeq2Seq(tokenizer, model=modele),
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=PATIENCE)],
+        # L'arret precoce exige une evaluation, que l'essai de vitesse supprime.
+        callbacks=([] if ESSAI_VITESSE else
+                   [EarlyStoppingCallback(early_stopping_patience=PATIENCE)]),
     )
-    entraineur.train()
+    resultat = entraineur.train()
+    if ESSAI_VITESSE:
+        # La moyenne inclut la mise en route des premiers pas, plus lents. Elle
+        # surestime donc un peu le regime de croisiere, ce qui est le bon sens
+        # pour planifier : on prevoit large plutot que de manquer la limite.
+        total = resultat.metrics["train_runtime"]
+        par_pas = total / ESSAI_VITESSE
+        print(f"\n{ESSAI_VITESSE} pas en {total:.0f} s, soit {par_pas:.2f} s par pas "
+              f"en moyenne, mise en route comprise")
+        for pas in (8760, 11680, 13140, 17520):
+            print(f"  {pas:>6} pas  ->  {pas * par_pas / 3600:5.1f} h")
+        print("Rien n'a ete sauvegarde.")
+        raise SystemExit
     entraineur.save_model(SORTIE_MODELE)
     tokenizer.save_pretrained(SORTIE_MODELE)
 
