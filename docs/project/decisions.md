@@ -10,6 +10,76 @@ Les plus récentes d'abord.
 
 ---
 
+## 14 novembre 2026 — Deux variables, deux effets, observés dans les deux sens
+
+**Ce qui a été fait.** Un second mélange, conçu pour corriger la régression du
+premier : le corpus d'origine rendu à ses **trois passages**, avec les mêmes
+280 320 lignes de nilechat. Il faut pour cela 13 140 pas, qui ne tenaient pas
+dans une session au rythme du premier mélange, 4,31 s par pas.
+
+Le tirage des lots par longueur, écrit pour l'occasion, a ramené le pas à
+**2,55 s**. Mesuré avant de s'engager, par un essai de 150 pas : la section
+précédente avait vu plusieurs estimations de vitesse démenties. Il a fallu
+l'écrire plutôt que l'emprunter, l'argument `group_by_length` ayant disparu de
+la version de `transformers` installée sur Kaggle.
+
+**Le résultat, sur les 678 phrases d'évaluation.**
+
+| | CER | exactitude |
+|---|---:|---:|
+| référence | 0,1087 | 29,4 % |
+| mélange 1 : 50 % de nilechat, origine 1,5× | **0,1016** | 29,6 % |
+| mélange 2 : 33 % de nilechat, origine 3× | 0,1089 | **31,4 %** |
+
+Les deux métriques imposées divergent : le second mélange a la meilleure
+exactitude jamais mesurée, et un CER revenu au niveau de la référence.
+
+**Ce qui explique la divergence.** Les deux runs, lus ensemble, se comportent
+comme une expérience à deux variables.
+
+| | part de nilechat | origine | voyelles longues | latin résiduel |
+|---|---:|---:|---:|---:|
+| mélange 1, contre la référence | 50 % | 1,5× | **−90** | +40 |
+| mélange 2, contre le mélange 1 | 33 % | 3× | +91 | **−53** |
+
+**Chaque variable déplace exactement la catégorie qu'on lui attribuait, et
+dans les deux sens.** La part de nilechat commande la cohérence des voyelles
+longues : ses cibles, produites par un même modèle, sont écrites de façon
+homogène. L'exposition au corpus d'origine commande la translittération du
+français : ce sont ses phrases qui l'enseignent. Le second mélange laisse du
+français en latin dans 2 phrases, contre 7 au premier et 4 à la référence.
+
+C'est ce qui distingue ce résultat d'une corrélation : l'effet apparaît quand
+on monte la variable, et disparaît quand on la baisse.
+
+**Ce qui a été écarté en chemin.** Les phrases longues se dégradent nettement
+(CER de 0,0737 à 0,1164 sur ce thème). Trois sorties y montraient un arrêt
+prématuré, une boucle et une transcription lettre à lettre, ce qui suggérait
+un modèle instable. **Le comptage systématique l'a démenti** : une boucle par
+modèle sur les trois, une seule troncature. La dégradation est diffuse, et
+s'explique plus simplement par la baisse de la part de nilechat, faite de
+phrases longues.
+
+La sélection prématurée d'un point de sauvegarde est écartée aussi : la perte
+de validation baisse à chaque contrôle, 0,1399, 0,1234 puis 0,1173, et c'est le
+dernier point qui a été retenu.
+
+Enfin, trois tranches affichaient un CER identique au dix-millième d'un run à
+l'autre. Vérifié : 516 prédictions sur 850 sont communes aux deux modèles, ce
+qui rend ces égalités plausibles. Ce n'était pas une erreur de copie.
+
+**Facteur confondant.** Le second mélange diffère du premier par le tirage par
+longueur en plus de la proportion. La lecture ci-dessus repose sur le fait que
+chaque catégorie a bougé dans le sens prédit par la proportion ; elle ne
+démontre pas que le tirage est neutre. Les runs suivants tirant tous par
+longueur, ils se compareront entre eux sans ce biais.
+
+**Suite.** Viser les deux effets à la fois : origine 3× et forte part de
+nilechat. Le point exact, 50/50, demande 17 520 pas, soit 12 h 40, hors
+session. 15 000 pas donnent 42 % de nilechat en 10 h 50.
+
+---
+
 ## 14 novembre 2026 — Le mélange avec nilechat améliore le CER de 6,5 %
 
 **Résultat.** Premier gain mesuré depuis l'entraînement initial, sur les 678
