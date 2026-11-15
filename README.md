@@ -221,6 +221,24 @@ Le modèle est servi par une API REST documentée au format OpenAPI (EF-04).
 | `GET /sante` | modèle, révision et appareil servis |
 | `GET /docs` | page Swagger, pour appeler l'API depuis le navigateur |
 
+### Avec Docker (ENF-01)
+
+Seul Docker est nécessaire. Le modèle est téléchargé à la construction de
+l'image, avec un jeton Hugging Face ayant accès à `sawti-nlp` ; le conteneur
+démarre ensuite sans réseau ni jeton.
+
+```bash
+export HF_TOKEN=hf_...                     # PowerShell : $env:HF_TOKEN = "hf_..."
+docker build --secret id=hf_token,env=HF_TOKEN -t byt5-arabizi .
+docker run --rm -p 8000:8000 byt5-arabizi
+```
+
+Le jeton passe par un secret de construction : il ne reste dans aucune couche
+de l'image. Une fois `docker ps` affichant `healthy`, la page Swagger est sur
+<http://localhost:8000/docs>.
+
+### Sans Docker
+
 ```bash
 python -m pip install -r requirements-service.txt
 uvicorn service.api:app --port 8000
