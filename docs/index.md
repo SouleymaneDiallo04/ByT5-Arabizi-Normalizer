@@ -69,6 +69,7 @@ data/limitations
 model/index
 model/baseline
 model/evaluation
+model/lora
 ```
 
 ```{toctree}

@@ -19,6 +19,14 @@ python -m pip install -r docs/requirements.txt
 python -m sphinx -b html docs docs/_build/html
 ```
 
+Ajouter `-E -a` pour forcer une reconstruction complète, quand une page
+modifiée ne se met pas à jour. Pour la consulter dans le navigateur, sur
+<http://localhost:8000> :
+
+```bash
+python -m http.server 8000 --directory docs/_build/html
+```
+
 Read the Docs reconstruit automatiquement la documentation à chaque push sur
 la branche configurée.
 

@@ -23,6 +23,37 @@ fichiers absents et poursuit avec les autres.
 dépôt sur sa page, puis d'être authentifié — `hf auth login`, ou la variable
 `HF_TOKEN`. L'accord est automatique.
 
+
+## Lignes en conflit : export pour relecture
+
+Après le nettoyage, une difficulté demeure : un même arabizi peut recevoir
+plusieurs cibles arabes, selon la source. `merge_all.py` marque ces lignes du
+drapeau `conflit` sans les supprimer (voir {doc}`limitations`). Deux scripts
+les sortent du corpus pour qu'un locuteur les arbitre :
+
+| Script | Produit |
+|---|---|
+| `donnees/conflict_detector.py` | `arabizi_vers_darija_conflits.xlsx`, avec deux colonnes à remplir : `action_validation` et `darija_valide` |
+| `donnees/split_file.py` | le même fichier découpé en six parts, `arabizi_conflits_partie_1.xlsx` à `_6.xlsx`, pour répartir la relecture |
+
+```bash
+python -m donnees.conflict_detector
+python -m donnees.split_file
+```
+
+À son écriture, le premier script relevait **21 711 lignes en conflit, pour
+9 546 formes arabizi ambiguës** ; ces chiffres suivent le corpus. Le découpage
+se fait sur la forme arabizi normalisée, `key_la` : toutes les cibles
+concurrentes d'une même forme arrivent dans la même part.
+
+```{note}
+Valider à la main 9 546 formes n'est pas tenable dans le temps du projet. Une
+piste proposée est de confier cette normalisation à un grand modèle de langage.
+Le pipeline actuel ne l'applique pas : les lignes en conflit sont conservées
+telles quelles. L'adopter changerait les cibles d'entraînement, et la décision
+devra passer par le {doc}`journal des décisions <../project/decisions>`.
+```
+
 ## Principe
 
 Les scripts lisent directement, à distance, les colonnes utiles des fichiers
