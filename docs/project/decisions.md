@@ -10,6 +10,54 @@ Les plus récentes d'abord.
 
 ---
 
+## 15 novembre 2026 — Le troisième mélange devient le meilleur modèle
+
+**Décision.** Le mélange 3 — 42 % de nilechat, corpus d'origine vu trois fois,
+tirage par longueur, 15 000 pas — remplace le modèle de référence.
+
+| sur 678 phrases | CER | exactitude | phrases avec latin |
+|---|---:|---:|---:|
+| baseline déterministe | 0,1699 | 17,6 % | 13 |
+| référence | 0,1087 | 29,4 % | 4 |
+| mélange 1 : 50 %, 1,5× | **0,1016** | 29,6 % | 7 |
+| mélange 2 : 33 %, 3× | 0,1089 | 31,4 % | 2 |
+| **mélange 3 : 42 %, 3×** | 0,1033 | **32,2 %** | **1** |
+
+Meilleure exactitude mesurée, latin réduit à une phrase — la référence du jeu de
+test en porte une aussi —, et un CER à 0,0017 du meilleur, soit −5 % par
+rapport à la référence. Le mélange 1 garde le meilleur CER mais laisse du
+français en latin dans sept phrases.
+
+**Pourquoi ce résultat est plus solide que les précédents.** Le mélange 3 ne
+diffère du mélange 2 que par la part de nilechat : même exposition au corpus
+d'origine, même tirage par longueur. Le facteur confondant signalé dans
+l'entrée précédente n'existe pas entre ces deux-là.
+
+| catégorie | mélange 2 | mélange 3 | écart |
+|---|---:|---:|---:|
+| voyelles longues | 760 | 722 | −38 |
+| espaces et agglutination | 274 | 254 | −20 |
+| hamzas | 126 | 113 | −13 |
+| latin résiduel | 18 | 13 | −5 |
+
+Monter la part de nilechat de 33 à 42 % fait revenir les voyelles longues, et
+le latin reste au plancher. Le modèle à deux variables de l'entrée précédente
+se confirme, sans biais cette fois.
+
+Les 38 opérations récupérées représentent 42 % de ce que le mélange 2 avait
+perdu. Aucune courbe n'est tirée de là : le point à 50 % vient du mélange 1,
+qui diffère aussi par le tirage et par l'exposition au corpus d'origine.
+
+La perte de validation baisse à chaque contrôle, 0,1372 puis 0,1203 puis
+0,1155, la plus basse des quatre runs. Aucun n'a convergé.
+
+**Suite.** Le point 50/50 avec trois passages, qui devrait récupérer le reste
+des voyelles sans perdre le latin. Il demande 17 520 pas, soit 12 h 40, au-delà
+d'une session : il faudra une reprise sur point de sauvegarde, et le quota
+hebdomadaire de la semaine en cours ne suffit plus.
+
+---
+
 ## 14 novembre 2026 — Deux variables, deux effets, observés dans les deux sens
 
 **Ce qui a été fait.** Un second mélange, conçu pour corriger la régression du
