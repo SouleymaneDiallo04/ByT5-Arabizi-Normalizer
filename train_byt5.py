@@ -20,12 +20,19 @@ Usage :
 """
 
 import os
+
+# A regler avant que l'allocateur CUDA ne s'initialise. L'echec constate
+# reservait 1,93 Go sans pouvoir les attribuer, pour une demande de 64 Mo :
+# c'est de la fragmentation, et les segments extensibles la reduisent.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+import random
 import sys
 
 import pandas as pd
 import torch
 from huggingface_hub import hf_hub_download
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 from transformers import (AutoTokenizer, AutoModelForSeq2SeqLM,
                           DataCollatorForSeq2Seq, EarlyStoppingCallback,
                           Seq2SeqTrainer, Seq2SeqTrainingArguments,
@@ -51,6 +58,24 @@ MAX_PAS = int(os.environ.get("MAX_PAS", 0))
 SORTIE_MODELE = os.environ.get("SORTIE_MODELE", "byt5-arabizi")
 SORTIE_PREDICTIONS = os.environ.get("SORTIE_PREDICTIONS", "byt5_predictions.csv")
 
+# Grouper les lots par longueur. Le remplissage dynamique aligne chaque lot sur
+# sa phrase la plus longue ; tirer au hasard dans un corpus qui melange nos
+# phrases de 21 octets et celles de 91 de nilechat fait calculer l'essentiel du
+# lot sur du remplissage. Le run du melange a tourne a 4,31 s par pas, contre
+# 3,14 pour le corpus d'origine, et a frole la limite de session.
+#
+# Desactive par defaut pour que les runs anterieurs restent rejouables a
+# l'identique : grouper change l'ordre de presentation des exemples, donc la
+# trajectoire d'optimisation, meme si le modele voit exactement les memes.
+GROUPER_LONGUEUR = os.environ.get("GROUPER_LONGUEUR", "0") == "1"
+
+# Essai de vitesse : quelques pas, ni evaluation, ni sauvegarde, ni prediction,
+# puis la duree par pas. Il sert a choisir une configuration avant d'engager
+# dix heures de calcul. Avec GROUPER_LONGUEUR, transformers place le lot le plus
+# long en tete : si le premier pas passe sans manque de memoire, le run complet
+# passera aussi, et l'essai le prouve en quelques secondes.
+ESSAI_VITESSE = int(os.environ.get("ESSAI_VITESSE", 0))
+
 # Longueurs fixees sur la distribution reelle des octets du corpus : l'entree
 # ne depasse jamais 178 octets, la cible 280. Ces valeurs couvrent donc 100 %
 # des paires sans troncature, en gaspillant le moins de remplissage possible.
@@ -59,8 +84,18 @@ MAX_CIBLE = 288
 
 GRAINE = 42
 EPOQUES = 3
-TAILLE_LOT = 16
-PAS_ACCUMULATION = 2
+# Le lot par carte et l'accumulation sont reglables, le produit des deux fois
+# le nombre de cartes devant rester constant pour que le protocole tienne : un
+# lot effectif de 64 fait de 8 760 pas exactement 560 640 passages.
+#
+# Pourquoi ils le sont devenus. Un corpus de phrases longues sature la memoire
+# la ou le corpus d'origine passait : nilechat fait 91 octets en mediane contre
+# 21 pour doda_synthetic, et le remplissage dynamique aligne chaque lot sur sa
+# phrase la plus longue. C'est la longueur qui sature, pas le volume. Diviser
+# le lot par carte par deux et doubler l'accumulation halve les activations
+# sans rien changer a ce que le modele voit.
+TAILLE_LOT = int(os.environ.get("TAILLE_LOT", 16))
+PAS_ACCUMULATION = int(os.environ.get("PAS_ACCUMULATION", 2))
 TAUX_APPRENTISSAGE = 3e-4
 PATIENCE = 2
 # Decodage glouton : PO-06 doit etre arbitre sur mesure reelle, et la recherche
@@ -75,6 +110,10 @@ class Corpus(Dataset):
         self.entrees = donnees["transliteration"].astype(str).tolist()
         self.cibles = donnees["darija_norm"].astype(str).tolist()
         self.tokenizer = tokenizer
+        # ByT5 code un octet par jeton : la longueur en octets est la longueur
+        # en jetons, et se calcule sans tokeniser 560 000 phrases au demarrage.
+        self.longueurs = [min(len(a.encode()), MAX_SOURCE) + min(len(b.encode()), MAX_CIBLE)
+                          for a, b in zip(self.entrees, self.cibles)]
 
     def __len__(self):
         return len(self.entrees)
@@ -85,6 +124,77 @@ class Corpus(Dataset):
         encode["labels"] = self.tokenizer(self.cibles[i], max_length=MAX_CIBLE,
                                           truncation=True)["input_ids"]
         return encode
+
+
+class ParLongueur(Sampler):
+    """Tire les exemples par lots de longueurs voisines.
+
+    Ecrit ici plutot qu'emprunte a transformers : l'argument group_by_length a
+    disparu de la version installee sur Kaggle, et deviner son remplacant
+    aurait lie le protocole a une version. Ce tirage ne depend de rien.
+
+    Le principe est celui de transformers. On melange, on decoupe en blocs de
+    cinquante lots, on trie chaque bloc par longueur et on le recoupe en lots :
+    chaque lot reunit des phrases semblables, ce qui supprime l'essentiel du
+    remplissage, tandis que le melange initial garde de l'alea entre les blocs.
+    L'ordre des lots est ensuite remelange.
+
+    Le lot le plus long est place en tete. C'est le pire cas pour la memoire :
+    s'il passe au premier pas, le run entier passera, et un manque de memoire se
+    declare en secondes plutot qu'au bout de six heures.
+    """
+
+    BLOCS = 50
+
+    def __init__(self, longueurs, taille_lot, graine):
+        self.longueurs = longueurs
+        self.taille_lot = taille_lot
+        self.graine = graine
+        self.passages = 0
+
+    def __len__(self):
+        return len(self.longueurs)
+
+    def __iter__(self):
+        if self.passages == 0:
+            print(f"tirage par longueur actif : lots de {self.taille_lot}")
+        # Une graine par passage : chaque epoque tire un ordre different, mais
+        # deux runs identiques tirent les memes, ce qu'exige ENF-04.
+        alea = random.Random(self.graine + self.passages)
+        self.passages += 1
+        ordre = list(range(len(self.longueurs)))
+        alea.shuffle(ordre)
+        bloc = self.taille_lot * self.BLOCS
+        lots = []
+        for debut in range(0, len(ordre), bloc):
+            trie = sorted(ordre[debut:debut + bloc], key=lambda i: -self.longueurs[i])
+            lots.extend(trie[k:k + self.taille_lot]
+                        for k in range(0, len(trie), self.taille_lot))
+        pire = max(range(len(lots)), key=lambda b: self.longueurs[lots[b][0]])
+        lots[0], lots[pire] = lots[pire], lots[0]
+        suite = list(range(1, len(lots)))
+        alea.shuffle(suite)
+        for b in [0] + suite:
+            yield from lots[b]
+
+
+class Entraineur(Seq2SeqTrainer):
+    """Seq2SeqTrainer qui accepte un tirage par longueur.
+
+    La surcharge prend ses arguments en vrac parce que la signature de
+    _get_train_sampler a change d'une version a l'autre de transformers. Si une
+    version future ne l'appelait plus, le tirage par longueur serait ignore sans
+    erreur : le message imprime au premier tirage est la pour le reveler.
+    """
+
+    def __init__(self, *args, longueurs=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._longueurs = longueurs
+
+    def _get_train_sampler(self, *args, **kwargs):
+        if self._longueurs is None:
+            return super()._get_train_sampler(*args, **kwargs)
+        return ParLongueur(self._longueurs, self.args.train_batch_size, self.args.seed)
 
 
 def charger(chemin, echantillon=None):
@@ -130,8 +240,23 @@ if __name__ == "__main__":
     # A pas fixe, le rythme d'evaluation est cale sur le tiers du parcours, pour
     # rendre trois points de controle comme le font trois epoques : l'arret
     # precoce et la selection du meilleur modele restent alors comparables.
-    RYTHME = "steps" if MAX_PAS else "epoch"
+    # Le lot effectif est ce qui rend deux experiences comparables, et il doit
+    # donc etre lisible dans le journal et non deduit des constantes.
+    cartes = max(torch.cuda.device_count(), 1)
+    effectif = TAILLE_LOT * PAS_ACCUMULATION * cartes
+    print(f"lot effectif : {TAILLE_LOT} par carte x {PAS_ACCUMULATION} "
+          f"d'accumulation x {cartes} carte(s) = {effectif}")
     if MAX_PAS:
+        print(f"soit {MAX_PAS * effectif} passages pour {MAX_PAS} pas")
+    print(f"lots groupes par longueur : {'oui' if GROUPER_LONGUEUR else 'non'}")
+
+    RYTHME = "steps" if MAX_PAS else "epoch"
+    if ESSAI_VITESSE:
+        RYTHME = "no"
+        cadence = dict(max_steps=ESSAI_VITESSE, save_strategy="no")
+        print(f"ESSAI DE VITESSE : {ESSAI_VITESSE} pas, sans evaluation ni "
+              f"sauvegarde")
+    elif MAX_PAS:
         cadence = dict(max_steps=MAX_PAS, save_strategy="steps",
                        save_steps=max(MAX_PAS // 3, 1),
                        eval_steps=max(MAX_PAS // 3, 1))
@@ -148,7 +273,7 @@ if __name__ == "__main__":
         per_device_eval_batch_size=TAILLE_LOT,
         gradient_accumulation_steps=PAS_ACCUMULATION,
         learning_rate=TAUX_APPRENTISSAGE,
-        load_best_model_at_end=True,
+        load_best_model_at_end=not ESSAI_VITESSE,
         **cadence,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
@@ -164,18 +289,40 @@ if __name__ == "__main__":
     # deux evite un echec de lancement sur une version plus ancienne.
     try:
         arguments = Seq2SeqTrainingArguments(eval_strategy=RYTHME, **reglages)
-    except TypeError:
+    except TypeError as erreur:
+        # Seul le renommage d'evaluation_strategy justifie un second essai.
+        # Toute autre erreur doit remonter telle quelle : la rattraper ici l'a
+        # deja masquee une fois, en remplacant un argument inconnu par un
+        # message trompeur sur un autre.
+        if "eval_strategy" not in str(erreur):
+            raise
         arguments = Seq2SeqTrainingArguments(evaluation_strategy=RYTHME, **reglages)
 
-    entraineur = Seq2SeqTrainer(
+    corpus_train = Corpus(train, tokenizer)
+    entraineur = Entraineur(
+        longueurs=corpus_train.longueurs if GROUPER_LONGUEUR else None,
         model=modele,
         args=arguments,
-        train_dataset=Corpus(train, tokenizer),
+        train_dataset=corpus_train,
         eval_dataset=Corpus(dev, tokenizer),
         data_collator=DataCollatorForSeq2Seq(tokenizer, model=modele),
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=PATIENCE)],
+        # L'arret precoce exige une evaluation, que l'essai de vitesse supprime.
+        callbacks=([] if ESSAI_VITESSE else
+                   [EarlyStoppingCallback(early_stopping_patience=PATIENCE)]),
     )
-    entraineur.train()
+    resultat = entraineur.train()
+    if ESSAI_VITESSE:
+        # La moyenne inclut la mise en route des premiers pas, plus lents. Elle
+        # surestime donc un peu le regime de croisiere, ce qui est le bon sens
+        # pour planifier : on prevoit large plutot que de manquer la limite.
+        total = resultat.metrics["train_runtime"]
+        par_pas = total / ESSAI_VITESSE
+        print(f"\n{ESSAI_VITESSE} pas en {total:.0f} s, soit {par_pas:.2f} s par pas "
+              f"en moyenne, mise en route comprise")
+        for pas in (8760, 11680, 13140, 17520):
+            print(f"  {pas:>6} pas  ->  {pas * par_pas / 3600:5.1f} h")
+        print("Rien n'a ete sauvegarde.")
+        raise SystemExit
     entraineur.save_model(SORTIE_MODELE)
     tokenizer.save_pretrained(SORTIE_MODELE)
 
