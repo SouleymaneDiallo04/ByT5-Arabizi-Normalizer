@@ -20,8 +20,8 @@ atteste deja pour chaque mot, puis les permute. Une variante ne contient donc
 que des ecritures que quelqu'un a reellement produites.
 
 Usage :
-    python augmenter.py             2 variantes par phrase, soit un corpus x3
-    python augmenter.py 1           une seule variante, corpus x2
+    python -m donnees.augmenter             2 variantes par phrase, soit un corpus x3
+    python -m donnees.augmenter 1           une seule variante, corpus x2
 """
 
 import collections
@@ -32,8 +32,8 @@ import sys
 import pandas as pd
 from huggingface_hub import hf_hub_download
 
-from baseline import mots
-from evaluate import distance
+from modele.baseline import mots
+from evaluation.evaluate import distance
 
 TRAIN = "train.csv"
 SORTIE = "train_augmente.csv"

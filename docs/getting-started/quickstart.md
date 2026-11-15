@@ -3,13 +3,14 @@
 Reconstruire le corpus complet en quelques commandes, depuis la racine du dépôt :
 
 ```bash
-python Extractor/extract_darija.py
-python Extractor/extract_doda.py
-python Extractor/extract_daa_pairs.py
-python Extractor/extract_doda_synthetic.py
+python -m donnees.extraction.extract_darija
+python -m donnees.extraction.extract_doda
+python -m donnees.extraction.extract_daa_pairs
+python -m donnees.extraction.extract_doda_synthetic
+python -m donnees.extraction.extract_doda_audio
 
-python merge_all.py
-python make_splits.py
+python -m donnees.merge_all
+python -m donnees.make_splits
 ```
 
 Chaque script d'extraction produit un fichier CSV (par exemple

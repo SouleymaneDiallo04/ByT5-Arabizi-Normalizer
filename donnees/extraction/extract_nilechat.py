@@ -28,8 +28,8 @@ comme pour toutes les autres sources du projet : quiconque a accepte les
 conditions des depots le reconstruit en une commande.
 
 Usage :
-    python Extractor/extract_nilechat.py --apercu   un couple de shards, 5 min
-    python Extractor/extract_nilechat.py            tout, 40 a 60 min
+    python -m donnees.extraction.extract_nilechat --apercu   un couple de shards, 5 min
+    python -m donnees.extraction.extract_nilechat            tout, 40 a 60 min
 """
 
 import collections

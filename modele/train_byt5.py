@@ -15,8 +15,8 @@ a donc rien a deposer a la main, mais le depot etant prive il faut y avoir
 ouvert une session (huggingface-cli login, ou le secret HF_TOKEN).
 
 Usage :
-    python train_byt5.py 2000    essai rapide, valide l'enchainement en minutes
-    python train_byt5.py         entrainement complet
+    python -m modele.train_byt5 2000    essai rapide, valide l'enchainement en minutes
+    python -m modele.train_byt5         entrainement complet
 """
 
 import os
@@ -344,4 +344,4 @@ if __name__ == "__main__":
     resultat["prediction"] = predictions
     resultat.to_csv(SORTIE_PREDICTIONS, index=False, encoding="utf-8-sig")
     print(f"{len(resultat)} predictions enregistrees dans {SORTIE_PREDICTIONS}")
-    print(f"mesurer avec : python evaluate.py {SORTIE_PREDICTIONS}")
+    print(f"mesurer avec : python -m evaluation.evaluate {SORTIE_PREDICTIONS}")

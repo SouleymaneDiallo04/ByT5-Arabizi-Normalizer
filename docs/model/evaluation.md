@@ -6,7 +6,7 @@ nous comparons passent tous par elle : si chacun calculait son propre CER, les
 chiffres ne seraient pas comparables.
 
 ```bash
-python evaluate.py [fichier_de_predictions.csv]
+python -m evaluation.evaluate [fichier_de_predictions.csv]
 ```
 
 Le fichier attendu contient au minimum les colonnes `prediction`, `darija` et

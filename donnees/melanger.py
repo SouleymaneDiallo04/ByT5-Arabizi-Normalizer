@@ -23,8 +23,8 @@ make_splits.py, l'arabe et l'arabizi, et le nombre de lignes retirees est
 affiche. Sans elle, l'evaluation ne vaudrait plus rien.
 
 Usage :
-    python melanger.py nilechat_translit.csv
-    python melanger.py nilechat_translit.csv 0.5 8760
+    python -m donnees.melanger nilechat_translit.csv
+    python -m donnees.melanger nilechat_translit.csv 0.5 8760
 """
 
 import sys
@@ -32,7 +32,7 @@ import sys
 import pandas as pd
 from huggingface_hub import hf_hub_download
 
-from make_splits import normaliser_cible, cle_arabe, cle_latine
+from donnees.make_splits import normaliser_cible, cle_arabe, cle_latine
 
 DEPOT = "sawti-nlp/darija-arabizi-corpus"
 BASE, TEST = "train.csv", "test_real.csv"
@@ -94,7 +94,7 @@ def tirer(donnees, combien, graine):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        raise SystemExit("Usage : python melanger.py corpus_candidat.csv "
+        raise SystemExit("Usage : python -m donnees.melanger corpus_candidat.csv "
                          "[part_base] [pas]")
     chemin = sys.argv[1]
     part = float(sys.argv[2]) if len(sys.argv) > 2 else PART_BASE
@@ -133,4 +133,4 @@ if __name__ == "__main__":
     print(f"  candidat  {n_candidat:>9} lignes, soit "
           f"{100 * n_candidat / len(candidat):.1f} % du candidat")
     print(f"\nLancer :  TRAIN_CSV={SORTIE} MAX_PAS={pas} "
-          f"SORTIE_PREDICTIONS=byt5_melange.csv python train_byt5.py")
+          f"SORTIE_PREDICTIONS=byt5_melange.csv python -m modele.train_byt5")

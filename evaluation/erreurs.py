@@ -17,8 +17,8 @@ calcule par programmation dynamique complete, et non par une heuristique de
 plus proche bloc commun, qui rendrait une distance superieure a l'optimale.
 
 Usage :
-    python erreurs.py predictions.csv              ventilation
-    python erreurs.py apres.csv avant.csv          ecart entre deux experiences
+    python -m evaluation.erreurs predictions.csv              ventilation
+    python -m evaluation.erreurs apres.csv avant.csv          ecart entre deux experiences
 """
 
 import collections
@@ -26,7 +26,7 @@ import sys
 
 import pandas as pd
 
-from evaluate import normaliser, distance
+from evaluation.evaluate import normaliser, distance
 
 # Voyelles longues. En arabizi elles s'ecrivent de plusieurs facons, ou/u/o
 # pour la premiere, a/aa pour la seconde : c'est la ou la variation de graphie

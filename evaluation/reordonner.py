@@ -39,8 +39,8 @@ inatteignable puisqu'il suppose de connaitre la reponse ; il borne ce que
 n'importe quelle methode de cette famille peut esperer.
 
 Usage :
-    python reordonner.py                       modele depuis Hugging Face
-    python reordonner.py chemin/vers/modele    modele local ou monte
+    python -m evaluation.reordonner                       modele depuis Hugging Face
+    python -m evaluation.reordonner chemin/vers/modele    modele local ou monte
 """
 
 import collections
@@ -54,9 +54,9 @@ import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-from baseline import mots
-from decouper_test import prelever
-from evaluate import normaliser, distance, mesurer
+from modele.baseline import mots
+from donnees.decouper_test import prelever
+from evaluation.evaluate import normaliser, distance, mesurer
 
 MODELE = "sawti-nlp/byt5-arabizi-normalizer"
 DEPOT_DONNEES = "sawti-nlp/darija-arabizi-corpus"
@@ -295,4 +295,4 @@ if __name__ == "__main__":
         restreinte.to_csv(REFERENCE_RESTREINTE, index=False, encoding="utf-8-sig")
         print(f"  {REFERENCE_RESTREINTE} ecrit, {len(restreinte)} phrases, "
               f"pour comparer a population egale.")
-        print(f"\n  python erreurs.py {SORTIE} {REFERENCE_RESTREINTE}")
+        print(f"\n  python -m evaluation.erreurs {SORTIE} {REFERENCE_RESTREINTE}")

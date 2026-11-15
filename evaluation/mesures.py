@@ -15,8 +15,8 @@ et un sous-ensemble appariee suffit a l'etablir pour un cout bien moindre.
 Dependances : requirements-train.txt.
 
 Usage :
-    python mesures.py                      modele depuis Hugging Face
-    python mesures.py chemin/vers/modele   modele local ou monte
+    python -m evaluation.mesures                      modele depuis Hugging Face
+    python -m evaluation.mesures chemin/vers/modele   modele local ou monte
 """
 
 import io
@@ -28,7 +28,7 @@ import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-from evaluate import normaliser, mesurer
+from evaluation.evaluate import normaliser, mesurer
 
 MODELE = "sawti-nlp/byt5-arabizi-normalizer"
 DEPOT_DONNEES = "sawti-nlp/darija-arabizi-corpus"
@@ -218,7 +218,7 @@ if __name__ == "__main__":
             sortie["prediction"] = pred
             sortie.to_csv(f"byt5_predictions_faisceaux{n}.csv", index=False,
                           encoding="utf-8-sig")
-        print("\n  ventilation complete : python evaluate.py "
+        print("\n  ventilation complete : python -m evaluation.evaluate "
               "byt5_predictions_faisceaux4.csv")
 
         print("\n== EF-03  score de confiance "
