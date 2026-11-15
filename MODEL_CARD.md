@@ -3,7 +3,6 @@ language:
 - ary
 license: cc-by-nc-4.0
 base_model: google/byt5-small
-pipeline_tag: text2text-generation
 library_name: transformers
 tags:
 - darija
@@ -53,6 +52,12 @@ Attention au nom du dernier dossier, qui se termine par une espace.
 ## Utilisation
 
 Le dépôt est privé : il faut un jeton Hugging Face ayant accès à `sawti-nlp`.
+
+**Transformers 5 est requis**, le modèle a été vérifié avec la version 5.20.2.
+Au chargement, un avertissement signale que la tête de sortie n'est pas liée aux
+plongements : c'est le comportement voulu, ByT5 les garde distinctes. Ne pas
+corriger `tie_word_embeddings` dans `config.json` : à `false`, les plongements
+de l'encodeur et du décodeur ne sont plus chargés.
 
 ```python
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM

@@ -92,7 +92,8 @@ entraîner, mesurer.
 │   └── profil_corpus.py            # profil d'un candidat avant entraînement
 ├── modele/                         # entraîner
 │   ├── baseline.py                 # baseline déterministe, règles et table de mots
-│   └── train_byt5.py               # affinage de ByT5
+│   ├── train_byt5.py               # affinage de ByT5
+│   └── inference.py                # décodage et confiance, communs aux mesures et au service
 ├── evaluation/                     # mesurer
 │   ├── evaluate.py                 # CER et exactitude, commande unique
 │   ├── erreurs.py                  # ventilation des erreurs par catégorie
@@ -100,10 +101,18 @@ entraîner, mesurer.
 │   ├── oracle.py                   # diagnostic du classement des hypothèses
 │   ├── reordonner.py               # réordonnancement des hypothèses
 │   └── test_robustesse.py          # contrôle de recette ENF-08
+├── service/                        # servir
+│   ├── api.py                      # API REST, OpenAPI et Swagger
+│   ├── normaliseur.py              # le modèle, chargé une fois
+│   ├── calibration.py              # rang calibré de la confiance (PO-05)
+│   ├── calibrer.py                 # calcule service/calibration.json
+│   └── config.py                   # modèle, révision, limites
+├── tests/                          # tests du service, sans le modèle
 ├── docs/                           # documentation (Sphinx, Read the Docs)
 ├── MODEL_CARD.md                   # carte du modèle publié sur Hugging Face
 ├── requirements.txt                # dépendances des données et de l'évaluation
 ├── requirements-train.txt          # dépendances de l'entraînement
+├── requirements-service.txt        # dépendances du service
 ├── .readthedocs.yaml
 └── .gitignore
 ```
@@ -177,7 +186,7 @@ python -m evaluation.evaluate
 
 Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un fichier CSV par source, puis `darija_all.csv` pour le corpus fusionné.
 
-> `atlasia/DODa-audio-dataset-V3` n'a pas encore de script d'extraction : son CSV se récupère depuis le dépôt Hugging Face. `merge_all.py` signale les fichiers absents et poursuit avec les autres.
+> `extract_doda_audio` demande d'avoir accepté une fois les conditions du dépôt `atlasia/DODa-audio-dataset` sur sa page, puis d'être authentifié (`hf auth login`). `merge_all.py` signale les fichiers absents et poursuit avec les autres.
 
 > Sous Windows, si le chemin utilisateur contient un espace, utiliser `python -m pip install ...` plutôt que `pip install ...`.
 
@@ -200,6 +209,45 @@ Les métriques sont produites par une **commande unique**, `evaluate.py`, qui
 servira aussi au modèle et aux modèles publics de comparaison. Le détail des
 résultats, par thème et par variété régionale, est dans la
 [documentation](https://byt5-arabizi-normalizer.readthedocs.io/).
+
+## Service
+
+Le modèle est servi par une API REST documentée au format OpenAPI (EF-04).
+
+| Route | Rôle |
+|---|---|
+| `POST /normaliser` | une phrase : `{"texte": "chrit 3 tomobilat"}` |
+| `POST /normaliser/lot` | de 1 à 64 phrases, résultats dans le même ordre (EF-06) |
+| `GET /sante` | modèle, révision et appareil servis |
+| `GET /docs` | page Swagger, pour appeler l'API depuis le navigateur |
+
+```bash
+python -m pip install -r requirements-service.txt
+uvicorn service.api:app --port 8000
+```
+
+Chaque résultat porte :
+
+| Champ | Contenu |
+|---|---|
+| `sortie` | la transcription en écriture arabe |
+| `confiance` | le **rang** de la confiance parmi les phrases du jeu de développement, en centièmes (PO-05). À 0,10, neuf phrases sur dix étaient plus sûres : les rangs bas désignent les sorties à faire relire |
+| `confiance_brute` | la probabilité moyenne par octet produit, entre 0,92 et 1 en pratique, d'où le rang |
+| `complete` | faux si la sortie a atteint la longueur maximale avant que le modèle termine la phrase |
+
+Quelques règles, qui évitent des résultats faux sans signalement :
+
+- **Une phrase ne dépasse pas 191 octets**, la longueur lue par le modèle à l'entraînement. Au-delà, le service répond 422 au lieu de tronquer l'entrée en silence.
+- **Le modèle est figé à une révision du dépôt Hugging Face** (`service/config.py`), et le service refuse de démarrer si `service/calibration.json` a été calculé pour une autre. `python -m service.calibrer` le recalcule.
+- **Transformers 5 est requis.** Le `config.json` publié ne se charge correctement qu'avec cette version ; voir le journal des décisions.
+- Le dépôt Hugging Face est privé : définir `HF_TOKEN` avant de lancer le service.
+
+Les tests vérifient le contrat de l'API sans charger le modèle :
+
+```bash
+python -m pip install pytest httpx
+python -m pytest
+```
 
 ## Documentation
 

@@ -29,13 +29,14 @@ from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 from evaluation.evaluate import normaliser, mesurer
+# Le calcul de confiance vit dans modele.inference, que le service appelle
+# aussi : le rang qu'il renvoie suppose un calcul identique a la calibration.
+from modele.inference import MAX_SOURCE, MAX_CIBLE, TAILLE_LOT, predire
 
 MODELE = "sawti-nlp/byt5-arabizi-normalizer"
 DEPOT_DONNEES = "sawti-nlp/darija-arabizi-corpus"
 DEV, TEST = "dev.csv", "test_real.csv"
 
-MAX_SOURCE, MAX_CIBLE = 192, 288
-TAILLE_LOT = 16
 FAISCEAUX = (1, 4)
 
 ECHANTILLON_CPU = 200       # phrases pour les variantes processeur, appariees
@@ -58,43 +59,6 @@ def charger(chemin, echantillon=None):
     if echantillon and echantillon < len(d):
         d = d.sample(echantillon, random_state=GRAINE).reset_index(drop=True)
     return d
-
-
-def predire(modele, tok, phrases, appareil, faisceaux=1, confiance=False):
-    """Decode une liste de phrases, et renvoie eventuellement la confiance.
-
-    La confiance retenue est la probabilite moyenne par octet produit, soit
-    l'exponentielle de la moyenne des log-probabilites de transition. Elle vit
-    dans [0,1] par construction, ce qu'exige EF-03, elle ne demande aucun
-    reentrainement, et elle se compare d'une phrase a l'autre quelle que soit
-    leur longueur, ce qu'une somme de log-probabilites ne permettrait pas.
-    """
-    textes, confiances = [], []
-    for depart in range(0, len(phrases), TAILLE_LOT):
-        lot = [str(p) for p in phrases[depart:depart + TAILLE_LOT]]
-        entrees = tok(lot, return_tensors="pt", padding=True, truncation=True,
-                      max_length=MAX_SOURCE).to(appareil)
-        with torch.no_grad():
-            sortie = modele.generate(**entrees, max_length=MAX_CIBLE,
-                                     num_beams=faisceaux,
-                                     output_scores=confiance,
-                                     return_dict_in_generate=True)
-        textes.extend(tok.batch_decode(sortie.sequences, skip_special_tokens=True))
-
-        if confiance:
-            transitions = modele.compute_transition_scores(
-                sortie.sequences, sortie.scores, normalize_logits=True)
-            # generate complete apres la fin de sequence avec le jeton de
-            # remplissage : le compter gonflerait la confiance, le modele lui
-            # donnant une probabilite proche de 1. Chez ByT5 seul le
-            # remplissage porte l'identifiant 0, les octets commencent a 3.
-            jetons = sortie.sequences[:, 1:]
-            garde = jetons != tok.pad_token_id
-            transitions = transitions.masked_fill(~garde, 0.0)
-            moyenne = transitions.sum(-1) / garde.sum(-1).clamp(min=1)
-            confiances.extend(moyenne.exp().tolist())
-
-    return textes, (confiances if confiance else None)
 
 
 def latence(modele, tok, phrases, appareil, lot=1):

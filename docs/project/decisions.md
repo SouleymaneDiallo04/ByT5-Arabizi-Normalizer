@@ -10,6 +10,33 @@ Les plus récentes d'abord.
 
 ---
 
+## 15 novembre 2026 — Le modèle publié se charge avec Transformers 5, que le service fige
+
+**Constat.** Au chargement, Transformers signale que la configuration demande de
+lier la tête de sortie aux plongements, que les deux matrices diffèrent dans le
+fichier, et qu'il ne les lie donc pas. Le `config.json` publié porte
+`tie_word_embeddings: true`, à la racine comme dans `modèles_S/`, alors que
+`google/byt5-small` porte `false`.
+
+**Mesure.** Rechargé avec `false`, le modèle perd aussi le lien entre les
+plongements de l'encodeur et du décodeur et la matrice partagée, que la
+sauvegarde n'a écrite qu'une fois. Transformers 5 les signale manquants et les
+réinitialise au hasard : les cinq phrases d'essai sortent vides. Avec `true`,
+les sorties sont celles de la fiche du modèle, et les poids relus sont
+identiques aux poids envoyés.
+
+**Décision.** Le `config.json` publié n'est pas modifié : pour ce fichier et
+Transformers 5, `true` est la valeur juste. L'entraînement et le service figent
+`transformers==5.20.2`, version de Kaggle avec laquelle le modèle a été
+entraîné et vérifié. Une version 4.x n'a pas été essayée ; elle lierait
+vraisemblablement la tête de sortie aux plongements, et n'est pas prise en
+charge.
+
+**Ce que ça ne change pas.** Les confiances mesurées jusqu'ici en chargeant le
+modèle depuis Hugging Face l'ont été avec le chargement juste.
+
+---
+
 ## 15 novembre 2026 — Le troisième mélange devient le meilleur modèle
 
 **Décision.** Le mélange 3 — 42 % de nilechat, corpus d'origine vu trois fois,
