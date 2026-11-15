@@ -1,3 +1,7 @@
+# Baseline par lexique de mots, construite sur darija_all.csv : chaque mot
+# arabizi prend sa cible la plus fréquente, avec un repli chiffre -> lettre.
+# Distincte de modele/baseline.py, la baseline de référence (EF-05).
+# Lancer depuis la racine du dépôt : python -m modele.baseline_lexique
 import pandas as pd
 import re
 from collections import Counter

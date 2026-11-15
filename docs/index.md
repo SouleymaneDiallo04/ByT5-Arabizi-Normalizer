@@ -47,6 +47,7 @@ getting-started/quickstart
 
 project/overview
 project/roadmap
+project/decisions
 project/contributors
 ```
 
@@ -66,6 +67,16 @@ data/limitations
 :caption: Modèle
 
 model/index
+model/baseline
+model/evaluation
+model/lora
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Annotation
+
+annotation/protocole
 ```
 
 ```{toctree}

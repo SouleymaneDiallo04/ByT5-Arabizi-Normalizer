@@ -9,8 +9,10 @@
 - [x] Extraction de `atlasia/DODa-audio-dataset-V3` (11 517 lignes, sans script)
 - [x] Rédaction de la carte du dataset Hugging Face
 - [x] Fusion et nettoyage (`merge_all.py`) : 196 770 lignes conservées
-- [ ] Publication de `darija_all.csv` sur Hugging Face
-- [ ] Découpage train / dev / test sans fuite d'une phrase entre les blocs
+- [x] Publication du corpus nettoyé sur Hugging Face
+- [x] Jeu de test et découpage sans fuite (`make_splits.py`)
+- [ ] Jeu de contrôle d'arabizi réel de messagerie, annoté à la main, pour
+      mesurer l'écart avec l'arabizi d'annotateur de TerjamaBench
 - [ ] Script d'extraction pour `DODa-audio-dataset-V3`, pour un pipeline
       entièrement reproductible
 - [ ] Amorçage d'un lexique français ↔ écriture arabe à partir de la colonne
@@ -27,6 +29,10 @@
 
 ## Modèle
 
+- [x] Baseline déterministe (`baseline.py`) : CER 0,1735, exactitude 18,2 %
+- [x] Harnais d'évaluation (`evaluate.py`), commande unique et reproductible
+- [x] Score de confiance calibré (EF-03)
+- [ ] Comparaison aux modèles publics de translittération darija sur le même jeu de test
 - [ ] Choix de la configuration de ByT5
 - [ ] Entraînement de référence
 - [ ] Évaluation (métriques à définir)
@@ -36,4 +42,4 @@
 
 - [x] Structure minimale de la documentation
 - [x] Déploiement sur Read the Docs
-- [ ] Pages Modèle et Évaluation
+- [x] Pages Modèle et Évaluation

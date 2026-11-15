@@ -7,7 +7,11 @@ INPUTS = [
     "darija_translit.csv",
     "daa_pairs_translit.csv",
     "doda_synthetic_translit.csv",
-    "doda_audio_v3_translit.csv",
+    # Produit par donnees/extraction/extract_doda_audio.py. Ce nom etait reste
+    # celui de l'ancien CSV de la V3, recupere a la main : l'extracteur ecrivait
+    # un fichier que la fusion ne lisait pas, et le corpus se construisait sans
+    # DODa-audio, en ne le signalant que d'une ligne.
+    "doda_audio_translit.csv",
 ]
 OUTPUT = "darija_all.csv"
 COLS = ["id", "darija", "transliteration", "source"]
@@ -60,10 +64,10 @@ for nom in INPUTS:
     try:
         frames.append(pd.read_csv(nom, usecols=COLS))
     except FileNotFoundError:
-        print(f"{nom} absent, ignoré (lancer son script dans Extractor/)")
+        print(f"{nom} absent, ignoré (lancer son script dans donnees/extraction/)")
 
 if not frames:
-    raise SystemExit("Aucun fichier d'entrée : lancer d'abord les scripts Extractor/")
+    raise SystemExit("Aucun fichier d'entrée : lancer d'abord les scripts de donnees/extraction/")
 
 df = pd.concat(frames, ignore_index=True)
 depart = len(df)

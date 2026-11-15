@@ -70,19 +70,54 @@ Le corpus est publié sur Hugging Face : <https://huggingface.co/datasets/sawti-
 
 ## Structure du dépôt
 
+Les scripts sont rangés selon l'étape qu'ils servent : construire le corpus,
+entraîner, mesurer.
+
 ```
 .
-├── Extractor/
-│   ├── extract_darija.py           # DrIAmed/darija-youtube-dataset
-│   ├── extract_doda.py             # MBZUAI-Paris/DODa-10K
-│   ├── extract_daa_pairs.py        # OiQ/daa-pairs
-│   ├── extract_doda_synthetic.py   # Haitam03/doda_synthetic
-│   └── seed_lexicon.py             # amorce du lexique de mots français
-├── merge_all.py                    # fusion, nettoyage, dédoublonnage
+├── donnees/                        # construire le corpus
+│   ├── extraction/                 # une source publique par script
+│   │   ├── extract_darija.py           # DrIAmed/darija-youtube-dataset
+│   │   ├── extract_doda.py             # MBZUAI-Paris/DODa-10K
+│   │   ├── extract_daa_pairs.py        # OiQ/daa-pairs
+│   │   ├── extract_doda_synthetic.py   # Haitam03/doda_synthetic
+│   │   ├── extract_doda_audio.py       # atlasia/DODa-audio-dataset
+│   │   ├── extract_nilechat.py         # UBC-NLP/nilechat, joint à sa source arabe
+│   │   └── seed_lexicon.py             # amorce du lexique de mots français
+│   ├── merge_all.py                # fusion, nettoyage, dédoublonnage
+│   ├── make_splits.py              # jeu de test et découpage train / dev
+│   ├── decouper_test.py            # jeu de réglage prélevé dans le test
+│   ├── augmenter.py                # augmentation par graphies attestées
+│   ├── melanger.py                 # mélange avec un corpus candidat, à budget fixe
+│   └── profil_corpus.py            # profil d'un candidat avant entraînement
+├── modele/                         # entraîner
+│   ├── baseline.py                 # baseline déterministe, règles et table de mots
+│   └── train_byt5.py               # affinage de ByT5
+├── evaluation/                     # mesurer
+│   ├── evaluate.py                 # CER et exactitude, commande unique
+│   ├── erreurs.py                  # ventilation des erreurs par catégorie
+│   ├── mesures.py                  # décodage, confiance, quantification, latence
+│   ├── oracle.py                   # diagnostic du classement des hypothèses
+│   ├── reordonner.py               # réordonnancement des hypothèses
+│   └── test_robustesse.py          # contrôle de recette ENF-08
 ├── docs/                           # documentation (Sphinx, Read the Docs)
+├── MODEL_CARD.md                   # carte du modèle publié sur Hugging Face
+├── requirements.txt                # dépendances des données et de l'évaluation
+├── requirements-train.txt          # dépendances de l'entraînement
 ├── .readthedocs.yaml
 └── .gitignore
 ```
+
+**Tous les scripts se lancent depuis la racine du dépôt, en module :**
+
+```bash
+python -m evaluation.erreurs apres.csv avant.csv
+```
+
+Et non `python evaluation/erreurs.py`, qui échouerait : les scripts s'importent
+les uns les autres d'un dossier à l'autre, et seul le lancement en module, depuis
+la racine, rend ces imports résolubles. Les fichiers de données sont lus et
+écrits dans le répertoire courant, donc à la racine également.
 
 ## Fusion et nettoyage
 
@@ -103,19 +138,41 @@ est la variation que le modèle doit apprendre, alors qu'un même arabizi associ
 des cibles divergentes est une incohérence entre conventions de sources. L'arbitrage
 du second cas dépend de la convention orthographique encore à fixer.
 
+## Jeu de test et découpage
+
+`make_splits.py` produit `train.csv` (186 861 lignes), `dev.csv` (9 799) et
+`test_real.csv` (850), et garantit trois choses :
+
+- **Le jeu de test est [`atlasia/TerjamaBench`](https://huggingface.co/datasets/atlasia/TerjamaBench)**, seul arabizi écrit par des humains dont nous disposons, le reste du corpus étant à plus de 90 % produit par des modèles. Il est réservé à l'évaluation.
+- **Aucune phrase ne traverse deux blocs.** Le découpage porte sur la clé de phrase et non sur les lignes, et 110 lignes du corpus qui recoupaient le jeu de test ont été retirées.
+- **Le `dev` ne contient aucune référence ambiguë**, puisqu'il sert à la mise au point.
+
+Une colonne `darija_norm` s'ajoute : la cible débarrassée de la vocalisation,
+avec le point d'interrogation en arabe. `darija` reste intact à côté. Ces deux
+écarts représentaient 27 % des cibles d'entraînement contre 0,7 % de celles du
+jeu de test, donc autant d'erreurs de caractères sans erreur de langue.
+
+Les limites du jeu de test, sa taille et la discipline de son usage sont décrites
+dans la [documentation](https://byt5-arabizi-normalizer.readthedocs.io/).
+
 ## Démarrage rapide
 
 ```bash
 git clone https://github.com/SouleymaneDiallo04/ByT5-Arabizi-Normalizer
 cd ByT5-Arabizi-Normalizer
-python -m pip install pandas pyarrow requests huggingface_hub
+python -m pip install -r requirements.txt
 
-python Extractor/extract_darija.py
-python Extractor/extract_doda.py
-python Extractor/extract_daa_pairs.py
-python Extractor/extract_doda_synthetic.py
+python -m donnees.extraction.extract_darija
+python -m donnees.extraction.extract_doda
+python -m donnees.extraction.extract_daa_pairs
+python -m donnees.extraction.extract_doda_synthetic
+python -m donnees.extraction.extract_doda_audio
 
-python merge_all.py
+python -m donnees.merge_all
+python -m donnees.make_splits
+
+python -m modele.baseline
+python -m evaluation.evaluate
 ```
 
 Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un fichier CSV par source, puis `darija_all.csv` pour le corpus fusionné.
@@ -123,6 +180,26 @@ Les scripts lisent à distance uniquement les colonnes de texte des fichiers Par
 > `atlasia/DODa-audio-dataset-V3` n'a pas encore de script d'extraction : son CSV se récupère depuis le dépôt Hugging Face. `merge_all.py` signale les fichiers absents et poursuit avec les autres.
 
 > Sous Windows, si le chemin utilisateur contient un espace, utiliser `python -m pip install ...` plutôt que `pip install ...`.
+
+## Baseline et évaluation
+
+La baseline est le plancher que le modèle doit dépasser. Elle n'apprend rien :
+une table de correspondance de mots extraite du corpus d'entraînement, puis une
+conversion caractère par caractère pour les mots qu'elle ignore.
+
+| Système | CER | Exactitude phrase |
+|---|---:|---:|
+| Règles seules, aucune donnée | 0,2224 | 9,6 % |
+| **Règles + table apprise sur le train** | **0,1735** | **18,2 %** |
+
+C'est contre **0,1735** que ByT5 doit être comparé, les deux utilisant les mêmes
+données. L'écart mesurera ce que le modèle apporte au-delà d'une recherche dans
+un dictionnaire.
+
+Les métriques sont produites par une **commande unique**, `evaluate.py`, qui
+servira aussi au modèle et aux modèles publics de comparaison. Le détail des
+résultats, par thème et par variété régionale, est dans la
+[documentation](https://byt5-arabizi-normalizer.readthedocs.io/).
 
 ## Documentation
 
@@ -148,7 +225,9 @@ python -m sphinx -b html docs docs/_build/html
 - [x] Fusion et nettoyage du corpus (`merge_all.py`)
 - [ ] Lexique de mots français fréquents et phrases mixtes darija / français
 - [ ] Nouveau Testament en darija (génération puis validation)
-- [ ] Jeu de test réel relu à la main
+- [x] Jeu de test et découpage sans fuite (`make_splits.py`)
+- [x] Baseline déterministe et harnais d'évaluation
+- [ ] Jeu de contrôle d'arabizi réel de messagerie, annoté à la main
 - [ ] Entraînement et évaluation du modèle ByT5
 
 ## Contributeurs
