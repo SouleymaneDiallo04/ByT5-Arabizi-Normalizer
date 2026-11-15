@@ -24,8 +24,8 @@ test enseigne une convention qui sera comptee comme erreur.
 phrases courtes du jeu de test, dont 163 sur 850 sont des mots isoles.
 
 Usage :
-    python profil_corpus.py nilechat_translit.csv
-    python profil_corpus.py un.csv deux.csv      plusieurs candidats
+    python -m donnees.profil_corpus nilechat_translit.csv
+    python -m donnees.profil_corpus un.csv deux.csv      plusieurs candidats
 """
 
 import collections
@@ -35,8 +35,8 @@ import sys
 import pandas as pd
 from huggingface_hub import hf_hub_download
 
-from baseline import mots
-from evaluate import normaliser
+from modele.baseline import mots
+from evaluation.evaluate import normaliser
 
 DEPOT = "sawti-nlp/darija-arabizi-corpus"
 TRAIN, TEST = "train.csv", "test_real.csv"
@@ -101,7 +101,7 @@ def octets(serie):
 if __name__ == "__main__":
     candidats = sys.argv[1:]
     if not candidats:
-        raise SystemExit("Usage : python profil_corpus.py un_corpus.csv")
+        raise SystemExit("Usage : python -m donnees.profil_corpus un_corpus.csv")
 
     test = charger(TEST, ["darija_norm", "transliteration"])
     train = charger(TRAIN, ["darija", "transliteration", "source"])

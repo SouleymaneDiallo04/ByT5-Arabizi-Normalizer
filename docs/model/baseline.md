@@ -5,8 +5,8 @@ ByT5 n'a d'intérêt que s'il la dépasse nettement. Elle n'apprend rien et
 n'ajuste aucun paramètre.
 
 ```bash
-python baseline.py       # produit baseline_predictions.csv
-python evaluate.py       # calcule les métriques
+python -m modele.baseline       # produit baseline_predictions.csv
+python -m evaluation.evaluate       # calcule les métriques
 ```
 
 ## Comment elle fonctionne
@@ -135,4 +135,4 @@ du taux d'erreur qu'il laisse passer.
 | EF-03 | score dans [0, 1] pour chaque normalisation | 850/850, de 0,250 à 1,000 |
 | ENF-08 | aucune exception sur cent entrées bruitées | 109/109 |
 
-Le contrôle d'ENF-08 est exécutable : `python test_robustesse.py`.
+Le contrôle d'ENF-08 est exécutable : `python -m evaluation.test_robustesse`.

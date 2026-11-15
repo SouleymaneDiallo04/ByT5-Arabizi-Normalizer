@@ -296,7 +296,7 @@ l'extérieur.
 
 ## 12 novembre 2026 — DODa-audio remplace sa variante V3
 
-**Décision.** `Extractor/extract_doda_audio.py` tire
+**Décision.** `donnees/extraction/extract_doda_audio.py` tire
 `atlasia/DODa-audio-dataset` à la place du CSV de la V3 récupéré à la main.
 
 **Vérification.** Les 8 697 paires conservées de la V3 s'y retrouvent toutes,

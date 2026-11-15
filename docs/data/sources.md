@@ -49,7 +49,7 @@ phrases communes avec `DODa-10K` et 1 832 avec `doda_synthetic`, mesurées aprè
 neutralisation de la ponctuation et de la vocalisation.
 
 ```{important}
-`Extractor/extract_doda_audio.py` remplace cette source par
+`donnees/extraction/extract_doda_audio.py` remplace cette source par
 [`atlasia/DODa-audio-dataset`](https://huggingface.co/datasets/atlasia/DODa-audio-dataset),
 qui la contient entièrement : les 8 697 paires conservées de la V3 s'y
 retrouvent toutes, et **3 668 s'y ajoutent**. Le pipeline redevient

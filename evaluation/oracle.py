@@ -22,8 +22,8 @@ que la comparaison categorie par categorie dise non seulement combien le
 classement pourrait gagner, mais sur quoi.
 
 Usage :
-    python oracle.py                       modele depuis Hugging Face
-    python oracle.py chemin/vers/modele    modele local ou monte
+    python -m evaluation.oracle                       modele depuis Hugging Face
+    python -m evaluation.oracle chemin/vers/modele    modele local ou monte
 """
 
 import sys
@@ -34,7 +34,7 @@ import torch
 from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-from evaluate import normaliser, distance, mesurer
+from evaluation.evaluate import normaliser, distance, mesurer
 
 MODELE = "sawti-nlp/byt5-arabizi-normalizer"
 DEPOT_DONNEES = "sawti-nlp/darija-arabizi-corpus"
@@ -135,6 +135,6 @@ if __name__ == "__main__":
     print(f"\nLe choix parfait n'est pas atteignable, il suppose de connaitre "
           f"la reponse.\nIl borne ce qu'un reordonnanceur pourrait gagner. Si "
           f"l'ecart est mince, le\nmodele ignore la reponse et c'est la "
-          f"capacite qu'il faut augmenter.\n\n  python erreurs.py "
+          f"capacite qu'il faut augmenter.\n\n  python -m evaluation.erreurs "
           f"{SORTIE_ORACLE} {SORTIE_PREMIER}\n\ndira sur quelles categories "
           f"ce gain potentiel se trouve.")

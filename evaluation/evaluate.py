@@ -4,7 +4,7 @@ Ce script est le seul point de mesure du projet : la baseline, le modele ByT5 et
 les modeles publics auxquels nous nous comparons passent tous par lui. Si chacun
 calculait son propre CER, les chiffres ne seraient pas comparables entre eux.
 
-Usage : python evaluate.py [fichier_de_predictions.csv]
+Usage : python -m evaluation.evaluate [fichier_de_predictions.csv]
 """
 
 import re

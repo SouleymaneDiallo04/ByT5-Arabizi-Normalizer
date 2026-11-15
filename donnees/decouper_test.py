@@ -27,7 +27,7 @@ pas comparables a ceux qui porteront sur 680 : ce script les recalcule donc sur
 la nouvelle base pour tout fichier de predictions trouve a cote de lui.
 
 Usage :
-    python decouper_test.py
+    python -m donnees.decouper_test
 """
 
 import glob
@@ -37,7 +37,7 @@ import sys
 import pandas as pd
 from huggingface_hub import hf_hub_download
 
-from evaluate import normaliser, mesurer
+from evaluation.evaluate import normaliser, mesurer
 
 DEPOT = "sawti-nlp/darija-arabizi-corpus"
 TEST = "test_real.csv"

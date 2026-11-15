@@ -5,12 +5,12 @@ entrees bruitees, comportant fautes, allongements et ponctuation repetee. Les
 entrees sont construites de facon deterministe, pour que deux executions
 produisent le meme resultat (ENF-04).
 
-Usage : python test_robustesse.py
+Usage : python -m evaluation.test_robustesse
 """
 
 import pandas as pd
 
-from baseline import construire_table, traduire
+from modele.baseline import construire_table, traduire
 
 BASES = [
     "sbah lkhir", "wach nta mzyan", "3andek l7a9", "chrit 3 tomobilat",

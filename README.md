@@ -70,24 +70,54 @@ Le corpus est publié sur Hugging Face : <https://huggingface.co/datasets/sawti-
 
 ## Structure du dépôt
 
+Les scripts sont rangés selon l'étape qu'ils servent : construire le corpus,
+entraîner, mesurer.
+
 ```
 .
-├── Extractor/
-│   ├── extract_darija.py           # DrIAmed/darija-youtube-dataset
-│   ├── extract_doda.py             # MBZUAI-Paris/DODa-10K
-│   ├── extract_daa_pairs.py        # OiQ/daa-pairs
-│   ├── extract_doda_synthetic.py   # Haitam03/doda_synthetic
-│   └── seed_lexicon.py             # amorce du lexique de mots français
-├── merge_all.py                    # fusion, nettoyage, dédoublonnage
-├── make_splits.py                  # jeu de test et découpage train / dev
-├── baseline.py                     # baseline déterministe (règles + table de mots)
-├── evaluate.py                     # métriques, commande unique et reproductible
-├── test_robustesse.py              # contrôle de recette ENF-08
-├── requirements.txt                # versions épinglées
+├── donnees/                        # construire le corpus
+│   ├── extraction/                 # une source publique par script
+│   │   ├── extract_darija.py           # DrIAmed/darija-youtube-dataset
+│   │   ├── extract_doda.py             # MBZUAI-Paris/DODa-10K
+│   │   ├── extract_daa_pairs.py        # OiQ/daa-pairs
+│   │   ├── extract_doda_synthetic.py   # Haitam03/doda_synthetic
+│   │   ├── extract_doda_audio.py       # atlasia/DODa-audio-dataset
+│   │   ├── extract_nilechat.py         # UBC-NLP/nilechat, joint à sa source arabe
+│   │   └── seed_lexicon.py             # amorce du lexique de mots français
+│   ├── merge_all.py                # fusion, nettoyage, dédoublonnage
+│   ├── make_splits.py              # jeu de test et découpage train / dev
+│   ├── decouper_test.py            # jeu de réglage prélevé dans le test
+│   ├── augmenter.py                # augmentation par graphies attestées
+│   ├── melanger.py                 # mélange avec un corpus candidat, à budget fixe
+│   └── profil_corpus.py            # profil d'un candidat avant entraînement
+├── modele/                         # entraîner
+│   ├── baseline.py                 # baseline déterministe, règles et table de mots
+│   └── train_byt5.py               # affinage de ByT5
+├── evaluation/                     # mesurer
+│   ├── evaluate.py                 # CER et exactitude, commande unique
+│   ├── erreurs.py                  # ventilation des erreurs par catégorie
+│   ├── mesures.py                  # décodage, confiance, quantification, latence
+│   ├── oracle.py                   # diagnostic du classement des hypothèses
+│   ├── reordonner.py               # réordonnancement des hypothèses
+│   └── test_robustesse.py          # contrôle de recette ENF-08
 ├── docs/                           # documentation (Sphinx, Read the Docs)
+├── MODEL_CARD.md                   # carte du modèle publié sur Hugging Face
+├── requirements.txt                # dépendances des données et de l'évaluation
+├── requirements-train.txt          # dépendances de l'entraînement
 ├── .readthedocs.yaml
 └── .gitignore
 ```
+
+**Tous les scripts se lancent depuis la racine du dépôt, en module :**
+
+```bash
+python -m evaluation.erreurs apres.csv avant.csv
+```
+
+Et non `python evaluation/erreurs.py`, qui échouerait : les scripts s'importent
+les uns les autres d'un dossier à l'autre, et seul le lancement en module, depuis
+la racine, rend ces imports résolubles. Les fichiers de données sont lus et
+écrits dans le répertoire courant, donc à la racine également.
 
 ## Fusion et nettoyage
 
@@ -132,16 +162,17 @@ git clone https://github.com/SouleymaneDiallo04/ByT5-Arabizi-Normalizer
 cd ByT5-Arabizi-Normalizer
 python -m pip install -r requirements.txt
 
-python Extractor/extract_darija.py
-python Extractor/extract_doda.py
-python Extractor/extract_daa_pairs.py
-python Extractor/extract_doda_synthetic.py
+python -m donnees.extraction.extract_darija
+python -m donnees.extraction.extract_doda
+python -m donnees.extraction.extract_daa_pairs
+python -m donnees.extraction.extract_doda_synthetic
+python -m donnees.extraction.extract_doda_audio
 
-python merge_all.py
-python make_splits.py
+python -m donnees.merge_all
+python -m donnees.make_splits
 
-python baseline.py
-python evaluate.py
+python -m modele.baseline
+python -m evaluation.evaluate
 ```
 
 Les scripts lisent à distance uniquement les colonnes de texte des fichiers Parquet : il n'est pas nécessaire de télécharger les jeux de données complets (l'un d'eux pèse environ 475 Mo à cause de l'audio). Résultat : un fichier CSV par source, puis `darija_all.csv` pour le corpus fusionné.
