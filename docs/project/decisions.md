@@ -10,6 +10,63 @@ Les plus récentes d'abord.
 
 ---
 
+## 16 novembre 2026 — Le service tient son contrat, et l'API ne coûte presque rien
+
+**Mesure.** Le service est lancé sur Kaggle, sur processeur (4 cœurs), avec le
+mélange 3 à la révision `96a5860`, et appelé en HTTP. Les phrases sont tirées
+comme dans `evaluation/mesures.py` : 200 phrases du jeu de test, graine 42.
+
+| | phrase seule, médiane | p90 | lot de 16, médiane | p90 | par phrase en lot |
+|---|---:|---:|---:|---:|---:|
+| premier modèle, sans API (cahier des charges) | 0,866 s | 1,863 s | 15,194 s | 19,962 s | 0,835 s |
+| mélange 3, à travers l'API | 0,934 s | 2,321 s | 12,605 s | 23,162 s | 0,788 s |
+
+**Lecture.** L'écart de médiane, 0,07 s, réunit le coût de l'API et celui du
+changement de modèle : il borne donc le premier, négligeable devant le
+décodage. Le p90 des lots repose sur huit lots et reste indicatif. Sur
+processeur, le lot demeure un faible levier, 0,788 s par phrase contre 0,934
+seule, ce que le cahier des charges avait établi.
+
+Contre le vrai modèle, le contrat est tenu : sorties complètes, ordre du lot
+conservé, même sortie et même confiance pour une phrase seule ou dans un lot
+(0,9968 dans les deux cas), refus à 422 d'une entrée vide ou trop longue,
+Swagger servi. La limite de 191 octets ne refuse aucune des 850 phrases du jeu
+de test.
+
+**Ce que ça entraîne.** Sur processeur, environ une seconde par phrase, et
+2,3 s pour une sur dix : c'est suffisant pour l'interface d'annotation, qui
+présente les phrases une à une. Un lot de 64, le maximum accepté, prendrait
+de l'ordre de cinquante secondes : un usage par lots soutenu demande un GPU.
+
+---
+
+## 15 novembre 2026 — Le modèle publié se charge avec Transformers 5, que le service fige
+
+**Constat.** Au chargement, Transformers signale que la configuration demande de
+lier la tête de sortie aux plongements, que les deux matrices diffèrent dans le
+fichier, et qu'il ne les lie donc pas. Le `config.json` publié porte
+`tie_word_embeddings: true`, à la racine comme dans `modèles_S/`, alors que
+`google/byt5-small` porte `false`.
+
+**Mesure.** Rechargé avec `false`, le modèle perd aussi le lien entre les
+plongements de l'encodeur et du décodeur et la matrice partagée, que la
+sauvegarde n'a écrite qu'une fois. Transformers 5 les signale manquants et les
+réinitialise au hasard : les cinq phrases d'essai sortent vides. Avec `true`,
+les sorties sont celles de la fiche du modèle, et les poids relus sont
+identiques aux poids envoyés.
+
+**Décision.** Le `config.json` publié n'est pas modifié : pour ce fichier et
+Transformers 5, `true` est la valeur juste. L'entraînement et le service figent
+`transformers==5.20.2`, version de Kaggle avec laquelle le modèle a été
+entraîné et vérifié. Une version 4.x n'a pas été essayée ; elle lierait
+vraisemblablement la tête de sortie aux plongements, et n'est pas prise en
+charge.
+
+**Ce que ça ne change pas.** Les confiances mesurées jusqu'ici en chargeant le
+modèle depuis Hugging Face l'ont été avec le chargement juste.
+
+---
+
 ## 15 novembre 2026 — Le troisième mélange devient le meilleur modèle
 
 **Décision.** Le mélange 3 — 42 % de nilechat, corpus d'origine vu trois fois,

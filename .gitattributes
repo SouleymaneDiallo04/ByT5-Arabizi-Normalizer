@@ -1,0 +1,5 @@
+# Fichiers lus sous Linux (image Docker) : fins de ligne LF quel que soit le
+# poste. Un retour chariot derriere une continuation casserait une instruction RUN.
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.sh text eol=lf

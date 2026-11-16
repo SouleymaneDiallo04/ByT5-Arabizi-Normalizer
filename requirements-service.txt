@@ -1,0 +1,12 @@
+# Dependances du service (EF-04, EF-06), versions figees (ENF-04).
+#
+# transformers 5 est requis : le config.json publie declare
+# tie_word_embeddings=true, valeur juste pour ce fichier avec la version 5 et
+# fausse avec la 4 (docs/project/decisions.md, 15 novembre). 5.20.2 est la
+# version avec laquelle le modele a ete entraine et verifie.
+transformers==5.20.2
+torch==2.12.1
+huggingface_hub==2.3.0
+fastapi==0.136.1
+uvicorn==0.44.0
+pydantic==2.13.0

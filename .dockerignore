@@ -1,0 +1,8 @@
+# Liste blanche : seul ce que l'image copie est envoye au moteur Docker. Les CSV
+# de donnees et de predictions de la racine n'ont rien a y faire.
+*
+!requirements-service.txt
+!modele/__init__.py
+!modele/inference.py
+!service/
+**/__pycache__
