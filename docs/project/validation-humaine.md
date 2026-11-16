@@ -30,11 +30,11 @@ public non plus : l'ensemble tourne en local, par `docker compose`.
 flowchart LR
     C[Client : Sawti, Swagger, script] -->|POST /normaliser| A
     subgraph compose[docker compose]
-        A[api\nByT5 + calibration] -->|enregistre chaque prédiction| B[(base\nPostgres)]
-        V[validation\npages HTML] -->|lit, enregistre les décisions| B
+        A["api<br/>ByT5 + calibration"] -->|enregistre chaque prédiction| B[("base<br/>Postgres")]
+        V["validation<br/>pages HTML"] -->|lit, enregistre les décisions| B
     end
     H[Validateur] -->|confirme ou corrige| V
-    B -->|python -m registre.exporter| R[registre.csv\ntransliteration, darija_norm]
+    B -->|python -m registre.exporter| R["registre.csv<br/>transliteration, darija_norm"]
     R -->|TRAIN_CSV| T[modele/train_byt5.py]
 ```
 
