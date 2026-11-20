@@ -10,6 +10,58 @@ Les plus récentes d'abord.
 
 ---
 
+## 20 novembre 2026 — La quantification est retenue, sans sa tête ni la sortie des feed-forward de l'encodeur
+
+**Ce que ça renverse.** Le cahier des charges avait écarté la quantification :
+l'entier 8 bits sur toutes les couches linéaires multipliait le CER par 3,8.
+Le cadrage du projet demande pourtant un modèle quantifié et à faible latence.
+Plutôt que de juger la méthode d'un bloc, on a cherché où se logeait la
+dégradation (`evaluation/quantification.py`).
+
+**Sélection**, groupe par groupe, sur les 172 phrases de réglage, sur processeur :
+
+| groupe quantifié seul | couches | CER / fp32 |
+|---|---:|---:|
+| attention de l'encodeur | 48 | 1,00 |
+| entrée des feed-forward de l'encodeur | 24 | 1,00 |
+| **sortie des feed-forward de l'encodeur** | 12 | **1,19** |
+| attention du décodeur | 32 | 1,01 |
+| entrée des feed-forward du décodeur | 8 | 1,02 |
+| sortie des feed-forward du décodeur | 4 | 0,95 |
+| **tête de sortie (`lm_head`)** | 1 | **2,03** |
+
+Deux groupes portent toute la dégradation. La tête de sortie, une seule couche,
+double le CER : c'est elle qui choisit chaque octet, et la moindre perte de
+précision s'y lit directement. La sortie des feed-forward de l'encodeur est le
+défaut connu de la famille T5. La même couche dans le décodeur, elle, supporte
+l'entier 8 bits. Le 0,95 du décodeur est du bruit sur 172 phrases.
+
+Une hypothèse a été contredite au passage : quantifier « tout sauf la sortie
+des feed-forward » restait à ×2,03, parce que la tête y était incluse. C'est le
+découpage par groupe qui a désigné les vrais coupables.
+
+**Mesure finale**, une seule fois, sur les 678 phrases d'évaluation :
+
+| | taille | CER | exactitude | latence médiane | p90 |
+|---|---:|---:|---:|---:|---:|
+| baseline | — | 0,1699 | 17,6 % | — | — |
+| fp32 | 1 199 Mo | 0,1033 | 32,2 % | 0,990 s | 1,913 s |
+| **quantifié, 116 couches sur 129** | **493 Mo** | **0,1042** | **31,4 %** | **0,616 s** | **1,138 s** |
+
+**Décision.** Le service servira le modèle quantifié : 2,4 fois plus léger,
+38 % plus rapide en médiane et 40 % au p90, pour +0,9 % de CER relatif et
+−0,8 point d'exactitude, soit environ cinq phrases sur 678. La latence est
+mesurée sur deux cœurs Kaggle, plus lents que les quatre de la mesure du
+16 novembre ; seul le rapport entre les deux lignes compte.
+
+**Ce que ça entraîne.** La confiance du modèle quantifié n'est pas celle du
+modèle fp32 : la calibration doit être refaite sur lui avant qu'il soit servi,
+sans quoi le rang renvoyé serait faux. `torch.ao.quantization` est annoncé
+comme retiré au profit de `torchao` ; il fonctionne encore avec torch 2.12.1,
+la version de l'image, qui reste figée.
+
+---
+
 ## 16 novembre 2026 — Le service tient son contrat, et l'API ne coûte presque rien
 
 **Mesure.** Le service est lancé sur Kaggle, sur processeur (4 cœurs), avec le
