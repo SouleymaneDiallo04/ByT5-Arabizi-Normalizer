@@ -68,6 +68,36 @@ Elle **n'est pas retenue** comme métrique principale pour cette raison même ;
 l'arbitrage est détaillé en PO-01 du cahier des charges.
 ```
 
+## NileChat, corpus de mélange
+
+Hors du corpus fusionné : ces paires ne passent pas par `merge_all.py`. Elles
+sont mélangées au corpus par `donnees/melanger.py`, dans une proportion fixée à
+l'avance, et c'est ce mélange qui entraîne le meilleur modèle.
+
+| | |
+|---|---|
+| Fichier | `nilechat_translit.csv`, 3,28 millions de paires |
+| Produit par | `python -m donnees.extraction.extract_nilechat` |
+| Arabizi | [`UBC-NLP/nilechat-arabizi-mor`](https://huggingface.co/datasets/UBC-NLP/nilechat-arabizi-mor), CC-BY-NC-4.0, **généré par un modèle de langue** |
+| Arabe | [`UBC-NLP/nilechat-lhv-mor`](https://huggingface.co/datasets/UBC-NLP/nilechat-lhv-mor), **CC-BY-ND-4.0** |
+| Où le trouver | dépôt **privé** `sawti-nlp/nilechat-arabizi-pairs`, réservé à l'équipe |
+
+```{danger}
+La licence CC-BY-ND de la source arabe interdit de distribuer une œuvre
+dérivée, et un corpus de paires en est une. Le dépôt
+`sawti-nlp/nilechat-arabizi-pairs` ne doit **jamais** devenir public, et le
+fichier ne doit être republié nulle part. Le corpus du projet, lui, en reste
+séparé pour pouvoir être publié un jour.
+```
+
+Le fichier n'est pas purgé du jeu de test : `melanger.py` retire les phrases qui
+recoupent TerjamaBench avant tout entraînement.
+
+```bash
+hf download sawti-nlp/nilechat-arabizi-pairs nilechat_translit.csv --repo-type dataset --local-dir .
+python -m donnees.melanger nilechat_translit.csv
+```
+
 ```{warning}
 Aucune licence n'est affichée sur la page de `doda_synthetic`, et nous n'avons
 pas vérifié celle de `darija-youtube-dataset`. À vérifier avant toute
