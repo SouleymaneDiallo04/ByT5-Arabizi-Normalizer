@@ -10,6 +10,61 @@ Les plus récentes d'abord.
 
 ---
 
+## 21 novembre 2026 — Prolonger le mélange 3 : un gain trop faible pour être établi
+
+**Question.** La perte de validation du mélange 3 baissait encore à son dernier
+contrôle. Le modèle gagne-t-il à apprendre plus longtemps ?
+
+**Expérience.** Depuis les poids du mélange 3 au pas 15 000, sur le même fichier
+de 960 000 lignes : 7 500 pas de plus, optimiseur neuf, taux 1e-4, échauffement
+de 5 %, décroissance linéaire jusqu'à zéro, graine de tirage décalée. Soit 5 h 43
+de GPU. C'est un nouveau cycle de taux et non un run de 22 500 pas d'un seul
+tenant. La reprise complète du Trainer a d'abord été essayée : les poids se
+rechargeaient, mais Adam fusionné refusait le premier pas.
+
+| | mélange 3 | prolongé |
+|---|---:|---:|
+| perte de validation | 0,1155 | 0,1136 |
+| réglage, 172 phrases : CER | 0,1179 | 0,1119 |
+| réglage : phrases exactes | 51 | 51 |
+| évaluation, 678 phrases : CER | 0,1033 | 0,1004 |
+| évaluation : phrases exactes | 218 | 214 |
+| évaluation : phrases avec latin | 1 | 1 |
+
+**Test apparié**, phrase par phrase, test du signe :
+
+| | exactes gagnées / perdues | p | phrases meilleures / pires | p |
+|---|---:|---:|---:|---:|
+| réglage | 4 / 4 | 1,00 | 20 / 14 | 0,39 |
+| évaluation | 8 / 12 | 0,50 | 63 / 54 | 0,46 |
+
+**Lecture.** Le CER baisse sur les deux jeux, mais aucun des deux écarts, ni sur
+l'exactitude ni sur le sens de variation des phrases, ne se distingue du hasard.
+Le gain est réparti sur presque toutes les catégories d'erreurs, de 2126 à 2056
+opérations d'édition sur les 850 phrases : voyelles longues −26, autres
+consonnes −16, espaces −15, clitiques −6. C'est la signature d'un effet de durée,
+pas d'un mécanisme corrigé. La perte qui se stabilise en fin de cycle (0,1138
+puis 0,1136) ne prouve pas un plafond, le taux y arrivant à zéro.
+
+**Décision.** La règle fixée avant la mesure est remplie : perte de phrases
+exactes non significative, plus de phrases améliorées que dégradées, latin
+stable. Le modèle prolongé devient donc le candidat à livrer. Mais cette règle
+était faible, puisqu'elle n'exigeait pas que le gain soit significatif, et il ne
+l'est pas. **Il n'est donc pas republié pour l'instant** : publier impose de
+refaire la calibration et la mesure de quantification, un travail à faire une
+fois, pour un modèle nettement meilleur. Le service reste sur le mélange 3.
+
+**Ce que ça entraîne.** Allonger l'entraînement seul n'est pas le levier
+principal : la priorité passe aux données. À budget égal de 15 000 pas, les
+prochaines recettes se comparent au mélange 3.
+
+La ventilation montre aussi une asymétrie : le modèle écrit trop d'espaces (179
+en trop, 80 manquants), trop de ل collés ou isolés (129 contre 74) et trop de ا
+(318 contre 178). Elle a été relevée sur les 850 phrases : toute correction qui
+la viserait devra être réglée sur les 172 phrases de réglage seulement.
+
+---
+
 ## 20 novembre 2026 — La quantification est retenue, sans sa tête ni la sortie des feed-forward de l'encodeur
 
 **Ce que ça renverse.** Le cahier des charges avait écarté la quantification :
