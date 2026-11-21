@@ -51,9 +51,11 @@ neutralisation de la ponctuation et de la vocalisation.
 ```{important}
 `donnees/extraction/extract_doda_audio.py` remplace cette source par
 [`atlasia/DODa-audio-dataset`](https://huggingface.co/datasets/atlasia/DODa-audio-dataset),
-qui la contient entièrement : les 8 697 paires conservées de la V3 s'y
-retrouvent toutes, et **3 668 s'y ajoutent**. Le pipeline redevient
-intégralement reproductible, ce qu'exige ENF-04.
+qui la contient entièrement. Sur ses 12 365 paires distinctes, **360 seulement
+sont absentes du corpus** : les autres y figurent déjà, souvent sous le nom de
+`DODa-10K` ou de `doda_synthetic` (voir le
+{doc}`journal des décisions <../project/decisions>`, 21 novembre). Le pipeline
+redevient intégralement reproductible, ce qu'exige ENF-04.
 
 Les deux colonnes arabes constituent par ailleurs une ressource en elles-mêmes.
 `darija_Arab_old` est une transcription phonétique, `darija_Arab_new` une
