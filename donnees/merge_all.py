@@ -59,69 +59,70 @@ def richesse(texte):
     return sum(ord(c) in TABLE_VOCAL for c in texte)
 
 
-frames = []
-for nom in INPUTS:
-    try:
-        frames.append(pd.read_csv(nom, usecols=COLS))
-    except FileNotFoundError:
-        print(f"{nom} absent, ignoré (lancer son script dans donnees/extraction/)")
+if __name__ == "__main__":
+    frames = []
+    for nom in INPUTS:
+        try:
+            frames.append(pd.read_csv(nom, usecols=COLS))
+        except FileNotFoundError:
+            print(f"{nom} absent, ignoré (lancer son script dans donnees/extraction/)")
 
-if not frames:
-    raise SystemExit("Aucun fichier d'entrée : lancer d'abord les scripts de donnees/extraction/")
+    if not frames:
+        raise SystemExit("Aucun fichier d'entrée : lancer d'abord les scripts de donnees/extraction/")
 
-df = pd.concat(frames, ignore_index=True)
-depart = len(df)
+    df = pd.concat(frames, ignore_index=True)
+    depart = len(df)
 
-# 1. Lignes inutilisables, et espaces normalisés
-df = df.dropna(subset=["darija", "transliteration"])
-df["darija"] = df["darija"].map(nettoyer)
-df["transliteration"] = df["transliteration"].map(nettoyer)
-df = df[(df["darija"] != "") & (df["transliteration"] != "")]
-vides = depart - len(df)
+    # 1. Lignes inutilisables, et espaces normalisés
+    df = df.dropna(subset=["darija", "transliteration"])
+    df["darija"] = df["darija"].map(nettoyer)
+    df["transliteration"] = df["transliteration"].map(nettoyer)
+    df = df[(df["darija"] != "") & (df["transliteration"] != "")]
+    vides = depart - len(df)
 
-# 2. Consignes de génération restées dans la cible
-avant = len(df)
-df = df[~df["darija"].str.contains(ARTEFACTS, na=False)]
-artefacts = avant - len(df)
+    # 2. Consignes de génération restées dans la cible
+    avant = len(df)
+    df = df[~df["darija"].str.contains(ARTEFACTS, na=False)]
+    artefacts = avant - len(df)
 
-# 3. Clés de comparaison. Le texte d'origine n'est pas modifié au-delà des espaces :
-#    c'est lui qui servira à l'entraînement, pas les clés.
-df["key_ar"] = df["darija"].map(cle_arabe)
-df["key_la"] = df["transliteration"].map(cle_latine)
+    # 3. Clés de comparaison. Le texte d'origine n'est pas modifié au-delà des espaces :
+    #    c'est lui qui servira à l'entraînement, pas les clés.
+    df["key_ar"] = df["darija"].map(cle_arabe)
+    df["key_la"] = df["transliteration"].map(cle_latine)
 
-# 4. Doublons de paires : même phrase et même arabizi aux variantes d'écriture près.
-avant = len(df)
-df = (
-    df.assign(_richesse=df["darija"].map(richesse))
-    .sort_values("_richesse", ascending=False, kind="stable")
-    .drop_duplicates(subset=["key_ar", "key_la"], keep="first")
-    .drop(columns="_richesse")
-    .sort_index()
-)
-doublons = avant - len(df)
+    # 4. Doublons de paires : même phrase et même arabizi aux variantes d'écriture près.
+    avant = len(df)
+    df = (
+        df.assign(_richesse=df["darija"].map(richesse))
+        .sort_values("_richesse", ascending=False, kind="stable")
+        .drop_duplicates(subset=["key_ar", "key_la"], keep="first")
+        .drop(columns="_richesse")
+        .sort_index()
+    )
+    doublons = avant - len(df)
 
-# 5. Même phrase arabe écrite de plusieurs façons en arabizi : conservé tel quel,
-#    c'est la variation d'écriture que le modèle doit apprendre à absorber.
-variantes = int((df.groupby("key_ar")["key_la"].transform("nunique") > 1).sum())
+    # 5. Même phrase arabe écrite de plusieurs façons en arabizi : conservé tel quel,
+    #    c'est la variation d'écriture que le modèle doit apprendre à absorber.
+    variantes = int((df.groupby("key_ar")["key_la"].transform("nunique") > 1).sum())
 
-# 6. Même arabizi mais cibles arabes divergentes : marqué et non supprimé,
-#    l'arbitrage dépend de la convention orthographique encore à fixer.
-df["conflit"] = df.groupby("key_la")["key_ar"].transform("nunique") > 1
+    # 6. Même arabizi mais cibles arabes divergentes : marqué et non supprimé,
+    #    l'arbitrage dépend de la convention orthographique encore à fixer.
+    df["conflit"] = df.groupby("key_la")["key_ar"].transform("nunique") > 1
 
-# 7. Paires dont les deux côtés ne se correspondent manifestement pas. Marqué plutôt
-#    que supprimé : certains écarts sont des chiffres écrits en mots (3ndi 32).
-ratio = df["key_ar"].str.len() / df["key_la"].str.len().clip(lower=1)
-df["suspect"] = (ratio < RATIO_MIN) | (ratio > RATIO_MAX)
+    # 7. Paires dont les deux côtés ne se correspondent manifestement pas. Marqué plutôt
+    #    que supprimé : certains écarts sont des chiffres écrits en mots (3ndi 32).
+    ratio = df["key_ar"].str.len() / df["key_la"].str.len().clip(lower=1)
+    df["suspect"] = (ratio < RATIO_MIN) | (ratio > RATIO_MAX)
 
-df.to_csv(OUTPUT, index=False, encoding="utf-8-sig")
+    df.to_csv(OUTPUT, index=False, encoding="utf-8-sig")
 
-print(f"{depart} lignes lues dans {len(frames)} fichier(s)")
-print(f"  {vides} lignes vides ou inutilisables retirées")
-print(f"  {artefacts} consignes de génération retirées")
-print(f"  {doublons} doublons de paires retirés")
-print(f"  {variantes} lignes de variation arabizi conservées")
-print(f"  {int(df['conflit'].sum())} lignes marquées conflit (cibles divergentes)")
-print(f"  {int(df['suspect'].sum())} lignes marquées suspect (alignement douteux)")
-print(f"{len(df)} lignes enregistrées dans {OUTPUT}")
-print()
-print(df["source"].value_counts().to_string())
+    print(f"{depart} lignes lues dans {len(frames)} fichier(s)")
+    print(f"  {vides} lignes vides ou inutilisables retirées")
+    print(f"  {artefacts} consignes de génération retirées")
+    print(f"  {doublons} doublons de paires retirés")
+    print(f"  {variantes} lignes de variation arabizi conservées")
+    print(f"  {int(df['conflit'].sum())} lignes marquées conflit (cibles divergentes)")
+    print(f"  {int(df['suspect'].sum())} lignes marquées suspect (alignement douteux)")
+    print(f"{len(df)} lignes enregistrées dans {OUTPUT}")
+    print()
+    print(df["source"].value_counts().to_string())
