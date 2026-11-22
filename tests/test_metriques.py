@@ -80,3 +80,45 @@ def test_reparer_signale_si_aucune_matrice_n_est_dans_le_fichier():
     noms = ["shared.weight", "encoder.embed_tokens.weight", "decoder.embed_tokens.weight",
             "lm_head.weight"]
     assert sorted(reparer(m, noms)) == sorted(noms)
+
+
+def test_reparer_relie_la_tete_d_un_decodeur_bert():
+    reparer = importer_comparer()
+
+    class Predictions(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.decoder = torch.nn.Linear(2, 4)
+            self.bias = torch.nn.Parameter(torch.zeros(4))
+
+    class Cls(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.predictions = Predictions()
+
+    class Plongements(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.word_embeddings = torch.nn.Embedding(4, 2)
+
+    class Bert(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embeddings = Plongements()
+
+    class Decodeur(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.bert, self.cls = Bert(), Cls()
+
+    class Modele(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.decoder = Decodeur()
+
+    m = Modele()
+    assert reparer(m, ["decoder.cls.predictions.decoder.weight",
+                       "decoder.cls.predictions.decoder.bias"]) == []
+    tete = m.decoder.cls.predictions
+    assert tete.decoder.weight is m.decoder.bert.embeddings.word_embeddings.weight
+    assert tete.decoder.bias is tete.bias

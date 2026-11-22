@@ -25,11 +25,11 @@ deux d'entre eux visent l'algerien ou l'arabe du Golfe, et non le darija marocai
 Usage, depuis la racine du depot, un GPU de preference :
     python -m evaluation.comparer_modeles           172 phrases de reglage
     python -m evaluation.comparer_modeles --final   678 phrases d'evaluation
-La seconde commande relit les predictions ecrites par la premiere.
+    python -m evaluation.comparer_modeles --seulement atlasia   un seul modele
+La commande --final relit les predictions ecrites par les autres.
 """
 
 import argparse
-import glob
 import os
 import re
 
@@ -65,6 +65,9 @@ CANDIDATS = [
 LOT = 16
 ESSAI_PREFIXE = 40
 LONGUEUR_JETONS = 128
+# Tete de BERT : ces deux poids sont lies a d'autres, et le fichier ne les ecrit pas.
+LIENS = {"cls.predictions.decoder.weight": "bert.embeddings.word_embeddings.weight",
+         "cls.predictions.decoder.bias": "cls.predictions.bias"}
 
 
 def reparer(modele, manquantes):
@@ -75,6 +78,17 @@ def reparer(modele, manquantes):
     de source aux absentes. Renvoie les cles manquantes qui ne s'expliquent pas
     ainsi : le modele qui en a n'est pas celui que ses auteurs ont entraine.
     """
+    hors_liens = []
+    for cle in manquantes:
+        suffixe = next((s for s in LIENS if cle.endswith(s)), None)
+        if suffixe is None:
+            hors_liens.append(cle)
+            continue
+        module, attribut = cle.rsplit(".", 1)
+        source = cle[:-len(suffixe)] + LIENS[suffixe]
+        setattr(modele.get_submodule(module), attribut, modele.get_parameter(source))
+    manquantes = hors_liens
+
     coeur = modele.model if hasattr(getattr(modele, "model", None), "shared") else modele
     candidates = {
         "shared": getattr(coeur, "shared", None),
@@ -110,20 +124,33 @@ def charger_modele(candidat, appareil):
     with safe_open(hf_hub_download(depot, "model.safetensors", revision=revision),
                    framework="pt") as f:
         cles = set(f.keys())
-    restantes = reparer(modele, sorted(set(modele.state_dict()) - cles))
+    # Une cle absente du fichier mais qui partage sa memoire avec une cle presente
+    # est deja liee par transformers : seules les autres sont a reparer.
+    etat = modele.state_dict()
+    adresses = {etat[c].data_ptr() for c in cles if c in etat}
+    restantes = reparer(modele, sorted(c for c in etat
+                                       if c not in cles and etat[c].data_ptr() not in adresses))
     if restantes:
         raise RuntimeError(f"poids absents du fichier : {restantes[:4]}")
     return tok, modele.to(appareil).eval()
 
 
-def reglages(candidat, modele):
+def reglages(candidat, modele, tok):
     """Longueurs d'entree et de generation adaptees au modele."""
     if candidat.get("par_mot"):
         return MAX_SOURCE, {}          # les auteurs fixent 40 octets de sortie
     if candidat.get("octets"):
         return MAX_SOURCE, {"max_length": MAX_CIBLE}
-    limite = getattr(modele.config, "max_position_embeddings", None) or LONGUEUR_JETONS
-    return min(MAX_SOURCE, limite), {"max_length": min(LONGUEUR_JETONS, limite)}
+    # Un EncoderDecoderModel range cette limite dans ses deux sous-configurations.
+    config = modele.config
+    limites = [getattr(c, "max_position_embeddings", None)
+               for c in (config, getattr(config, "encoder", None), getattr(config, "decoder", None))]
+    limite = min([v for v in limites if v] or [LONGUEUR_JETONS])
+    generation = {"max_length": min(LONGUEUR_JETONS, limite)}
+    # Sans fin de sequence declaree, le modele ecrirait jusqu'a la longueur maximale.
+    if modele.generation_config.eos_token_id is None and tok.eos_token_id is not None:
+        generation["eos_token_id"] = tok.eos_token_id
+    return min(MAX_SOURCE, limite), generation
 
 
 def generer(modele, tok, textes, appareil, source, generation):
@@ -140,7 +167,7 @@ def generer(modele, tok, textes, appareil, source, generation):
 
 def predire(candidat, modele, tok, phrases, appareil, prefixe):
     """Une sortie par phrase. Un modele de mots traite chaque mot, puis recolle."""
-    source, generation = reglages(candidat, modele)
+    source, generation = reglages(candidat, modele, tok)
     if not candidat.get("par_mot"):
         return generer(modele, tok, [prefixe + p for p in phrases], appareil, source, generation)
     mots = sorted({m for p in phrases for m in p.split()})
@@ -183,6 +210,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--final", action="store_true",
                    help="mesure les predictions deja ecrites sur les 678 phrases d'evaluation")
+    p.add_argument("--seulement", help="ne relance que les modeles dont le nom contient ce texte")
     a = p.parse_args()
 
     test = charger("test_real.csv")
@@ -199,12 +227,17 @@ def main():
 
     appareil = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"reglage, {len(reglage)} phrases, sur {appareil}")
-    for f in glob.glob("comparaison_*.csv"):
-        os.remove(f)
+    choisis = [c for c in CANDIDATS
+               if not a.seulement or a.seulement.lower() in c["nom"].lower()]
+    if not choisis:
+        raise SystemExit(f"aucun modele ne correspond a {a.seulement!r}")
+    for c in choisis:
+        if os.path.exists(fichier(c)):
+            os.remove(fichier(c))
     phrases = test["transliteration"].astype(str).tolist()
     entete()
     echecs = []
-    for c in CANDIDATS:
+    for c in choisis:
         try:
             tok, modele = charger_modele(c, appareil)
             prefixe = choisir_prefixe(c, modele, tok, reglage, appareil)
