@@ -10,6 +10,33 @@ Les plus récentes d'abord.
 
 ---
 
+## 22 novembre 2026 — Le WER rejoint les deux métriques imposées
+
+**Constat.** Le cadrage impose d'optimiser l'exactitude de phrase et le CER. Les
+deux se sont contredits sur le modèle prolongé : meilleur CER, moins de phrases
+exactes. Et le problème que décrit le cadrage est un vocabulaire fragmenté, or
+aucune des deux ne mesure au niveau du mot : l'exactitude perd toute une phrase
+pour une lettre, le CER dilue un mot entièrement faux.
+
+**Décision.** Les trois métriques sont rapportées, et **le WER départage deux
+modèles quand l'exactitude et le CER se contredisent.**
+
+| 678 phrases d'évaluation | baseline | mélange 3 |
+|---|---:|---:|
+| exactitude de phrase | 17,6 % | 32,2 % |
+| CER | 0,1699 | 0,1033 |
+| WER | 0,5042 | 0,3891 |
+
+**Écartées après mesure.** La part de mots ramenés à une seule forme est la plus
+proche de l'objectif, mais elle ne repose que sur 80 mots du jeu de test, et un
+modèle qui ramènerait toutes les variantes vers une forme fausse y serait
+parfait. L'exactitude à la convention près redéfinit ce qui est juste, et reste
+un outil de diagnostic. Le taux de lettres dans le bon alphabet est déjà à
+99,9 %. La latence n'est pas une métrique à optimiser : c'est une contrainte du
+cadrage, vérifiée sur le modèle final.
+
+---
+
 ## 21 novembre 2026 — DODa-audio n'apporte que 360 paires, et non 3 668
 
 **Correction.** Le journal du 12 novembre annonçait 3 668 paires nouvelles, et
