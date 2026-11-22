@@ -47,8 +47,12 @@ TACHE_MT5 = "transliterate_latin_darija"
 CANDIDATS = [
     {"nom": "melange 3 (nous)", "depot": MODELE, "revision": REVISION,
      "octets": True, "prefixes": [""]},
-    {"nom": "AtlasIA, Transformer", "depot": "atlasia/Transliteration-Moroccan-Darija",
-     "prefixes": [""]},
+    # Entraine sur des mots : sur 172 phrases de reglage, son CER passe de 0,78 en
+    # phrases entieres a 0,30 mot par mot et en minuscules. Son tokenizer ne
+    # distingue pas une coupure dans un mot d'une limite de mots, d'ou les espaces
+    # internes retires a la sortie.
+    {"nom": "AtlasIA, Transformer (par mot)", "depot": "atlasia/Transliteration-Moroccan-Darija",
+     "prefixes": [""], "par_mot": True, "minuscules": True, "sans_espaces": True},
     {"nom": "akachkach, ByT5", "depot": "akachkach/byt5-darija-transliteration-v1",
      "octets": True,
      "prefixes": ["", "transliterate: ", "transliterate Darija: ", "arabizi: ",
@@ -141,7 +145,7 @@ def charger_modele(candidat, appareil):
 
 def reglages(candidat, modele, tok):
     """Longueurs d'entree et de generation adaptees au modele."""
-    if candidat.get("par_mot"):
+    if candidat.get("par_mot") and candidat.get("octets"):
         return MAX_SOURCE, {}          # les auteurs fixent 40 octets de sortie
     if candidat.get("octets"):
         return MAX_SOURCE, {"max_length": MAX_CIBLE}
@@ -174,10 +178,13 @@ def predire(candidat, modele, tok, phrases, appareil, prefixe):
     source, generation = reglages(candidat, modele, tok)
     if not candidat.get("par_mot"):
         return generer(modele, tok, [prefixe + p for p in phrases], appareil, source, generation)
-    mots = sorted({m for p in phrases for m in p.split()})
-    table = dict(zip(mots, generer(modele, tok, [prefixe + m for m in mots],
-                                   appareil, source, generation)))
-    return [" ".join(table[m].strip() for m in p.split()) for p in phrases]
+    forme = str.lower if candidat.get("minuscules") else str
+    mots = sorted({forme(m) for p in phrases for m in p.split()})
+    sorties = generer(modele, tok, [prefixe + m for m in mots], appareil, source, generation)
+    if candidat.get("sans_espaces"):
+        sorties = [s.replace(" ", "") for s in sorties]
+    table = dict(zip(mots, sorties))
+    return [" ".join(table[forme(m)].strip() for m in p.split()) for p in phrases]
 
 
 def choisir_prefixe(candidat, modele, tok, reglage, appareil):
