@@ -53,7 +53,11 @@ CANDIDATS = [
      "octets": True,
      "prefixes": ["", "transliterate: ", "transliterate Darija: ", "arabizi: ",
                   "to arabic: ", "translate Arabizi to Arabic: "]},
+    # Sa configuration nomme MT5Tokenizer, que transformers 5 ne sait plus
+    # instancier. Son spiece.model est identique octet pour octet a celui de
+    # google/mt5-small, dont le tokenizer se charge.
     {"nom": "Haitam03, mT5", "depot": "Haitam03/darija-mt5-translation-transliteration",
+     "depot_tokenizer": "google/mt5-small",
      "prefixes": ["", f"{TACHE_MT5}: ", f"{TACHE_MT5} ", f"<{TACHE_MT5}> ", f"[{TACHE_MT5}] ",
                   "transliterate latin darija: "]},
     {"nom": "Khenafif, mBART (algerien)",
@@ -118,7 +122,7 @@ def charger_modele(candidat, appareil):
     from safetensors import safe_open
 
     depot, revision = candidat["depot"], candidat.get("revision")
-    tok = AutoTokenizer.from_pretrained(depot, revision=revision)
+    tok = AutoTokenizer.from_pretrained(candidat.get("depot_tokenizer", depot), revision=revision)
     modele = AutoModelForSeq2SeqLM.from_pretrained(depot, revision=revision,
                                                    use_safetensors=True)
     with safe_open(hf_hub_download(depot, "model.safetensors", revision=revision),
