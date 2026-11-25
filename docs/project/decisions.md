@@ -10,6 +10,46 @@ Les plus récentes d'abord.
 
 ---
 
+## 25 novembre 2026 — Devant tous les modèles publics mesurés
+
+**Mesure.** `evaluation/comparer_modeles.py` fait passer les modèles publics de
+translittération sur les mêmes phrases de TerjamaBench, par la même mesure.
+Mode d'appel choisi sur les 172 phrases de réglage, chiffres sur les 678
+d'évaluation :
+
+| système | domaine visé | CER | WER | exactitude |
+|---|---|---:|---:|---:|
+| **mélange 3 (nous)** | darija marocain | **0,1033** | **38,9 %** | **32,2 %** |
+| akachkach, ByT5 | darija | 0,2477 | 48,1 % | 24,3 % |
+| baseline, dictionnaire et règles | darija marocain | 0,1699 | 50,4 % | 17,6 % |
+| AtlasIA, Transformer, mot par mot | darija marocain | 0,2929 | 69,0 % | 9,9 % |
+| masterofaudio, ByT5, mot par mot | arabe du Golfe | 0,2499 | 73,2 % | 9,3 % |
+| Khenafif, mBART | darija algérien | 0,6055 | 93,0 % | 0,4 % |
+
+Le mT5 de Haitam03, entraîné sur `doda_synthetic`, une de nos sources, reste à
+mesurer.
+
+**Trois pièges, et ce qu'ils auraient fait conclure.**
+
+- **Le modèle d'AtlasIA est entraîné sur des mots.** Appelé sur des phrases
+  entières, il paraissait à 0,78 de CER ; mot par mot et en minuscules, il est
+  à 0,30 sur le réglage. Son tokenizer ne distingue pas une coupure dans un mot
+  d'une limite de mots, et il perd des mots, `daba` par exemple.
+- **Les poids partagés.** Un T5 sauvegardé par transformers 4 avec
+  `tie_word_embeddings=False` n'écrit ses plongements qu'une fois, et
+  transformers 5 réinitialise ceux qu'il ne trouve pas : le modèle aurait
+  produit du charabia. Le script relie ces matrices, et lit les clés dans le
+  fichier lui-même plutôt que dans le rapport de chargement.
+- **Le préfixe d'entrée.** Deux modèles n'en documentent aucun : le meilleur de
+  six essais est gardé, et leur score peut être un peu sous-estimé.
+
+**Ce que ça entraîne.** Nous ne sommes pas passés à côté d'un modèle public
+déjà meilleur. Le score d'AtlasIA ne tranche pas la question d'un petit
+Transformer dédié : il est plombé par son tokenizer et son entraînement sur des
+mots isolés, sans contexte.
+
+---
+
 ## 22 novembre 2026 — Le WER rejoint les deux métriques imposées
 
 **Constat.** Le cadrage impose d'optimiser l'exactitude de phrase et le CER. Les
