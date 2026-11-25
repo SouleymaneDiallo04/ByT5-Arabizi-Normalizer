@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titre %}Validation{% endblock %} · ByT5 Arabizi</title>
+<style>
+  :root { --encre: #1d2330; --doux: #5d6675; --trait: #d9dde3;
+          --fond: #f7f8fa; --carte: #ffffff; --accent: #1f5fbf; --alerte: #b3261e; }
+  body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: var(--encre);
+         background: var(--fond); }
+  header, main { max-width: 960px; margin: 0 auto; padding: 16px; }
+  nav a { margin-right: 16px; color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; background: var(--carte); }
+  th, td { padding: 8px; border-bottom: 1px solid var(--trait); text-align: left;
+           vertical-align: top; }
+  .ar { direction: rtl; text-align: right; font-size: 1.15em; }
+  textarea.ar { width: 100%; min-height: 5em; box-sizing: border-box;
+                font: inherit; font-size: 1.3em; }
+  .erreur { color: var(--alerte); border: 1px solid var(--alerte); padding: 8px;
+            background: var(--carte); }
+  .actions button, .lettres button { margin: 4px 8px 4px 0; padding: 8px 14px; }
+  .doux { color: var(--doux); }
+</style>
+</head>
+<body>
+<header><nav>
+  <a href="/">À valider</a><a href="/suivante">Valider la suivante</a><a href="/historique">Historique</a>
+</nav></header>
+<main>{% block contenu %}{% endblock %}</main>
+</body>
+</html>
