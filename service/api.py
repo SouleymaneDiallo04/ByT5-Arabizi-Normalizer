@@ -7,11 +7,13 @@ La page Swagger est alors sur http://localhost:8000/docs.
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.exc import InterfaceError, OperationalError
 
+from registre.depot import Registre
 from service.calibration import Calibration
-from service.config import CALIBRATION, MAX_LOT
+from service.config import CALIBRATION, DATABASE_URL, MAX_LOT
 from service.normaliseur import MAX_OCTETS, Normaliseur, nettoyer
 
 DESCRIPTION = """
@@ -22,6 +24,12 @@ traduit pas.
 La `confiance` est un **rang** : la part des phrases du jeu de développement
 dont la sortie était moins sûre. À 0,10, neuf phrases sur dix étaient plus
 sûres ; les rangs les plus bas désignent les sorties à faire relire.
+
+Relié au registre de validation, le service enregistre chaque prédiction
+avant de répondre, et la réponse porte son `id` : elle attend d'être
+confirmée ou corrigée sur l'interface de validation. Si le registre ne répond
+pas, le service renvoie 503 plutôt qu'une prédiction qui échapperait à la
+validation.
 """
 
 
@@ -66,6 +74,10 @@ class RequeteLot(BaseModel):
 
 
 class Resultat(BaseModel):
+    id: int | None = Field(
+        default=None,
+        description="Identifiant de la prédiction dans le registre de "
+                    "validation ; null si le service n'enregistre pas.")
     entree: str = Field(description="Le texte reçu, tel quel.")
     sortie: str = Field(description="Sa transcription en écriture arabe.")
     confiance: float = Field(
@@ -86,8 +98,13 @@ class ReponseLot(BaseModel):
         description="Un résultat par phrase, dans l'ordre de la requête.")
 
 
-def creer_app(normaliseur=None, calibration=None):
-    """Construit l'application. Les tests y injectent un faux modele."""
+INDISPONIBLE = {503: {"description": "Registre de validation injoignable : "
+                                     "aucune prédiction n'est rendue."}}
+
+
+def creer_app(normaliseur=None, calibration=None, registre=None):
+    """Construit l'application. Les tests y injectent un faux modele et un
+    registre SQLite ; sans registre injecte, DATABASE_URL decide."""
 
     @asynccontextmanager
     async def cycle(app):
@@ -99,7 +116,13 @@ def creer_app(normaliseur=None, calibration=None):
             raise RuntimeError(
                 f"calibration de {c.modele}@{c.revision}, modèle servi "
                 f"{n.nom}@{n.revision} : relancer python -m service.calibrer")
+        r = registre
+        if r is None and DATABASE_URL:
+            r = Registre(DATABASE_URL)
+        if r is not None:
+            r.creer_tables()
         app.state.normaliseur, app.state.calibration = n, c
+        app.state.registre = r
         yield
 
     app = FastAPI(title="ByT5 Arabizi Normalizer", version="1.0.0",
@@ -107,18 +130,40 @@ def creer_app(normaliseur=None, calibration=None):
 
     def traiter(request, textes):
         n, c = request.app.state.normaliseur, request.app.state.calibration
-        sorties = n.normaliser([nettoyer(t) for t in textes])
-        return [Resultat(entree=t, sortie=s, confiance=c.rang(brute),
-                         confiance_brute=round(brute, 4), complete=complete)
-                for t, (s, brute, complete) in zip(textes, sorties)]
+        r = request.app.state.registre
+        propres = [nettoyer(t) for t in textes]
+        sorties = n.normaliser(propres)
+        lignes = [{"entree": t, "entree_propre": p, "sortie": s,
+                   "confiance": c.rang(brute),
+                   "confiance_brute": round(brute, 4), "complete": complete,
+                   "revision": n.revision}
+                  for t, p, (s, brute, complete) in zip(textes, propres, sorties)]
+        ids = [None] * len(lignes)
+        if r is not None:
+            # La directive veut que toute prediction passe par la validation :
+            # une prediction rendue sans etre enregistree y echapperait sans
+            # que rien ne le signale.
+            try:
+                ids = r.enregistrer(lignes)
+            except (OperationalError, InterfaceError) as erreur:
+                raise HTTPException(
+                    503, "registre de validation injoignable : la prédiction "
+                         "n'est pas rendue faute de pouvoir être enregistrée"
+                ) from erreur
+        return [Resultat(id=i, entree=x["entree"], sortie=x["sortie"],
+                         confiance=x["confiance"],
+                         confiance_brute=x["confiance_brute"],
+                         complete=x["complete"])
+                for i, x in zip(ids, lignes)]
 
     @app.post("/normaliser", response_model=Resultat,
-              summary="Normaliser une phrase")
+              summary="Normaliser une phrase", responses=INDISPONIBLE)
     def normaliser(requete: Requete, request: Request):
         return traiter(request, [requete.texte])[0]
 
     @app.post("/normaliser/lot", response_model=ReponseLot,
-              summary="Normaliser un lot de phrases (EF-06)")
+              summary="Normaliser un lot de phrases (EF-06)",
+              responses=INDISPONIBLE)
     def normaliser_lot(requete: RequeteLot, request: Request):
         return ReponseLot(resultats=traiter(request, requete.textes))
 
@@ -126,7 +171,8 @@ def creer_app(normaliseur=None, calibration=None):
     def sante(request: Request):
         n, c = request.app.state.normaliseur, request.app.state.calibration
         return {"statut": "pret", "modele": n.nom, "revision": n.revision,
-                "appareil": n.appareil, "phrases_calibration": len(c.scores)}
+                "appareil": n.appareil, "phrases_calibration": len(c.scores),
+                "registre": request.app.state.registre is not None}
 
     return app
 
