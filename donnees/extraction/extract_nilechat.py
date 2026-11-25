@@ -25,7 +25,9 @@ ATTENTION. La source arabe est en **CC-BY-ND**, qui interdit de distribuer une o
 derivee, et un corpus de paires en est une. L'arabizi est en CC-BY-NC, donc non
 commercial. **Le fichier produit ne doit pas etre publie.** Seul ce script l'est,
 comme pour toutes les autres sources du projet : quiconque a accepte les
-conditions des depots le reconstruit en une commande.
+conditions des depots le reconstruit en une commande. Pour l'equipe, il est
+conserve dans le depot prive sawti-nlp/nilechat-arabizi-pairs, qui ne doit
+jamais devenir public.
 
 Usage :
     python -m donnees.extraction.extract_nilechat --apercu   un couple de shards, 5 min
@@ -235,4 +237,6 @@ if __name__ == "__main__":
     if comptees != ecrites:
         raise SystemExit(f"ANOMALIE : {ecrites} paires emises mais {comptees} "
                          f"relues. Le fichier ne vaut rien, ne pas l'utiliser.")
-    print("Ce fichier ne doit pas etre publie : la source arabe est en CC-BY-ND.")
+    print("Ce fichier ne doit pas etre publie : la source arabe est en CC-BY-ND.\n"
+          "Il peut aller dans le depot prive sawti-nlp/nilechat-arabizi-pairs, "
+          "et nulle part ailleurs.")
