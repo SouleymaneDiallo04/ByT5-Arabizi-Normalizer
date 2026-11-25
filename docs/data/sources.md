@@ -100,6 +100,43 @@ hf download sawti-nlp/nilechat-arabizi-pairs nilechat_translit.csv --repo-type d
 python -m donnees.melanger nilechat_translit.csv
 ```
 
+## moul_sout, paires de parole retranscrite
+
+Hors du corpus fusionné, comme NileChat : la licence de la source est inconnue.
+Ses paires s'ajoutent au train par `donnees/ajouter_source.py`, dans un fichier
+`train_v2.csv` qui reste local et sert de base à `donnees/melanger.py`
+(`BASE_CSV`).
+
+| | |
+|---|---|
+| Fichier | `moul_sout_translit.csv`, 71 021 lignes |
+| Produit par | `python -m donnees.extraction.extract_moul_sout` |
+| Source | [`atlasia/moul_sout_transliteration_71k`](https://huggingface.co/datasets/atlasia/moul_sout_transliteration_71k), accès validé à la main par AtlasIA |
+| Licence | **non indiquée** : la fiche ne dit ni la licence ni la provenance |
+
+C'est de la parole retranscrite : de longues phrases, beaucoup d'arabe standard
+et de français. Ses 71 021 lignes ne portent que 35 545 phrases arabes : presque
+chacune figure deux fois, avec deux arabizi écrits différemment. 24 % des lignes
+gardent du latin côté arabe, souvent des phrases entières, et 5 860 dépassent
+les longueurs du modèle. Les deux sont conservés, comme pour les autres sources :
+le premier se lit après entraînement dans les sorties restées en latin, le
+second est coupé par l'entraînement.
+
+`ajouter_source.py` en retient 68 152 paires, avec les 357 paires de DODa-audio
+encore absentes du corpus :
+
+```bash
+python -m donnees.extraction.extract_moul_sout
+python -m donnees.extraction.extract_doda_audio
+python -c "import pandas as pd; pd.concat([pd.read_csv('moul_sout_translit.csv'), pd.read_csv('doda_audio_translit.csv')[['id','darija','transliteration','source']]]).to_csv('candidats.csv', index=False, encoding='utf-8-sig')"
+python -m donnees.ajouter_source candidats.csv train_v2.csv
+```
+
+```{danger}
+Sans licence connue, ni `moul_sout_translit.csv` ni `train_v2.csv` ne doivent
+être publiés, ni versés dans le corpus du projet. Seul le script l'est.
+```
+
 ```{warning}
 Aucune licence n'est affichée sur la page de `doda_synthetic`, et nous n'avons
 pas vérifié celle de `darija-youtube-dataset`. À vérifier avant toute
