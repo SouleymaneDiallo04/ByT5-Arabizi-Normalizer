@@ -38,7 +38,10 @@ from transformers import (AutoTokenizer, AutoModelForSeq2SeqLM,
                           Seq2SeqTrainer, Seq2SeqTrainingArguments,
                           set_seed)
 
-MODELE = "google/byt5-small"
+# Modele de depart. ByT5-base a ete ecarte dans le cahier des charges sur une
+# estimation de cout (environ le triple), jamais mesuree : MODELE_DEPART permet
+# de la remplacer par un essai de vitesse, sans rien changer d'autre.
+MODELE = os.environ.get("MODELE_DEPART", "google/byt5-small")
 DEV, TEST = "dev.csv", "test_real.csv"
 DEPOT = "sawti-nlp/darija-arabizi-corpus"
 
