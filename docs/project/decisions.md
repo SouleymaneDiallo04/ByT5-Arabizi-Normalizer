@@ -10,6 +10,43 @@ Les plus récentes d'abord.
 
 ---
 
+## 25 novembre 2026 — La validation humaine est en place
+
+**Décision.** La directive *Score de confiance et boucle de feedback* est
+implémentée telle que conçue le 16 novembre : chaque prédiction du service est
+enregistrée dans une base Postgres dédiée avant que la réponse parte, une
+interface la fait confirmer, corriger ou écarter, et
+`python -m registre.exporter` rend les corrections au format d'entraînement.
+
+**Ce qui a été tranché en cours de route.**
+
+- Base injoignable : **503**, et non une prédiction rendue sans être
+  enregistrée, qui échapperait à la validation sans que rien ne le signale.
+- Postgres **17.12** et non 18 : la version 18 a déplacé son répertoire de
+  données, et un volume monté à l'ancien chemin ne retiendrait rien.
+- La normalisation des cibles et les clés de rapprochement passent dans
+  `donnees/normalisation.py`, sans dépendance : l'image de validation n'a ni
+  pandas ni torch. `make_splits.py` les réexporte, et rien ne change pour les
+  autres scripts.
+- L'export retire les phrases du jeu de test avec les clés de `make_splits.py`
+  et affiche leur nombre. Une phrase de TerjamaBench soumise au service puis
+  corrigée fausserait sinon l'évaluation.
+
+**Vérifié.** 54 tests sur SQLite, sans modèle ni serveur. Avec
+`docker compose`, une correction survit au redémarrage des conteneurs, l'arrêt
+de la base fait rendre 503 au service, qui rend 200 dès qu'elle revient, et
+l'export d'une correction écrit une ligne. L'image de validation n'a pas torch.
+
+**Limite mesurée.** Base arrêtée, le 503 arrive en 15 à 18 s pour la première
+requête, puis en 8 s. Ce n'est pas le `connect_timeout` de 5 s : le DNS de
+Docker met 8 s à répondre que le nom d'un conteneur arrêté n'existe pas, et ce
+délai précède la connexion. Raccourcir le délai du résolveur dans le conteneur
+(`dns_opt`) n'y change rien, l'attente étant dans le DNS de Docker lui-même.
+Aucune prédiction n'échappe au registre pour autant : seule la réponse d'échec
+est lente.
+
+---
+
 ## 25 novembre 2026 — Les hamzas ne sont pas neutralisées au calcul des métriques
 
 **Constat.** PO-01 annonce qu'au calcul des métriques, et là seulement, les

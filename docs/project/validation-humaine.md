@@ -1,6 +1,7 @@
 # Validation humaine et registre d'erreurs
 
-Conception arrêtée le 16 novembre 2026, avant implémentation.
+Conception arrêtée le 16 novembre 2026, implémentée le 25 novembre : paquets
+`registre/` et `validation/`, `compose.yaml`.
 
 ## Ce qui est demandé
 
@@ -108,7 +109,8 @@ validateur.
 `python -m registre.exporter registre.csv` écrit les prédictions corrigées avec
 les colonnes que lit `modele/train_byt5.py` sans transformation :
 `transliteration` (l'entrée vue par le modèle) et `darija_norm` (la correction
-normalisée comme les autres cibles, par `donnees/make_splits.py`). Il ajoute
+normalisée comme les autres cibles, par `donnees/normalisation.py`, que
+`donnees/make_splits.py` réexporte). Il ajoute
 `darija`, `sortie_modele`, `confiance` et `revision` pour l'analyse.
 
 - `--avec-confirmations` ajoute les sorties confirmées, comme exemples justes.
@@ -133,3 +135,13 @@ Sur SQLite, sans serveur Postgres ni modèle :
 
 La persistance au redémarrage se vérifie avec `docker compose` : redémarrer les
 conteneurs, retrouver les validations.
+
+## Écarts à la conception
+
+- **Confirmer avec un texte modifié est refusé**, comme corriger sans rien
+  modifier. Le bouton choisi et la saisie doivent concorder : deviner
+  l'intention reviendrait à décider à la place du validateur.
+- **Les ports ne sont publiés que sur `127.0.0.1`**, l'interface n'ayant pas
+  d'authentification.
+- **`validation` attend que `api` soit prêt**, pour que les tables ne soient
+  pas créées par deux conteneurs à la fois.
