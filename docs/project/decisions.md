@@ -10,6 +10,47 @@ Les plus récentes d'abord.
 
 ---
 
+## 25 novembre 2026 — Les hamzas ne sont pas neutralisées au calcul des métriques
+
+**Constat.** PO-01 annonce qu'au calcul des métriques, et là seulement, les
+hamzas sont neutralisées dans la référence comme dans la prédiction. La commande
+de mesure ne l'a jamais fait. `normaliser` dans `evaluation/evaluate.py` retire
+la vocalisation, convertit `?` et `;` en signes arabes et réduit les espaces,
+rien d'autre. Le remplacement de أ, إ et آ par ا n'existe que dans `cle_arabe`,
+qui sert à détecter doublons et fuites entre les jeux, jamais à noter. Tous les
+chiffres publiés depuis le premier modèle sont donc **stricts** : une hamza qui
+diffère compte comme une erreur.
+
+**Mesure.** Mêmes prédictions, mêmes 678 phrases d'évaluation (`prelever`,
+`donnees/decouper_test.py`), même `normaliser`, auquel on ajoute des deux côtés
+le remplacement de أ, إ et آ par ا :
+
+| | CER | WER | Exactitude |
+|---|---:|---:|---:|
+| mélange 3, strict | 0,1033 | 38,9 % | 32,2 % |
+| mélange 3, hamzas neutralisées | 0,0989 | 37,5 % | 33,9 % |
+| baseline, stricte | 0,1699 | 50,4 % | 17,6 % |
+| baseline, hamzas neutralisées | 0,1666 | 49,6 % | 18,7 % |
+
+93 références sur 678 portent une hamza. **12 phrases** du mélange 3 ne sont
+fausses que par elle, et le plus souvent le modèle y écrit la forme standard
+quand la référence ne le fait pas : ألف ريال pour الف ريال, إنستغرام pour
+انستغرام.
+
+**Décision.** La mesure stricte reste la mesure principale, pour trois raisons :
+- tous les chiffres déjà présentés et publiés le sont sous cette forme ;
+- c'est la plus sévère pour le modèle ;
+- l'écart avec la baseline change à peine : 14,6 points d'exactitude en
+  mesure stricte, 15,2 en neutralisée.
+
+La version neutralisée est donnée en mesure secondaire, comme la table de
+DODa-audio. Le cahier des charges n'étant plus modifié, c'est cette entrée qui
+fait foi sur ce point : ses chiffres de PO-01 (+0,0034 de CER, +1,3 point
+d'exactitude), mesurés sur le premier modèle, décrivent cette mesure
+secondaire et non la principale.
+
+---
+
 ## 25 novembre 2026 — Devant tous les modèles publics mesurés
 
 **Mesure.** `evaluation/comparer_modeles.py` fait passer les modèles publics de
