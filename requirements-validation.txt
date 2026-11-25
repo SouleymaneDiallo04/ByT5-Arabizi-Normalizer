@@ -1,0 +1,9 @@
+# Dependances de l'interface de validation, versions figees (ENF-04).
+# Ni torch ni transformers : elle lit et ecrit le registre, sans modele.
+fastapi==0.136.1
+uvicorn==0.44.0
+pydantic==2.13.0
+jinja2==3.1.6
+python-multipart==0.0.26
+sqlalchemy==2.0.51
+psycopg[binary]==3.3.9

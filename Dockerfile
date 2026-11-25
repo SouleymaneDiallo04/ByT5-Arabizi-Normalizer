@@ -41,6 +41,7 @@ snapshot_download(MODELE, revision=REVISION, allow_patterns=[ \
 
 COPY modele/__init__.py modele/inference.py modele/
 COPY service/ service/
+COPY registre/__init__.py registre/schema.py registre/depot.py registre/
 
 # Tout est dans l'image : interdire le reseau a Hugging Face garantit que le
 # conteneur ne depend pas de l'hote, et ferait echouer un fichier manquant au
