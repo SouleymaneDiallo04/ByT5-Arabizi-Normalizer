@@ -32,7 +32,8 @@ from evaluation.evaluate import normaliser, distance
 # pour la premiere, a/aa pour la seconde : c'est la ou la variation de graphie
 # frappe en premier.
 VOYELLES = set("اوي")
-# Porteurs de hamza. Leur neutralisation au scoring est arbitree en PO-01.
+# Porteurs de hamza. La mesure principale ne les neutralise pas : une hamza
+# qui differe compte comme une erreur (docs/project/decisions.md, 25 novembre).
 HAMZAS = set("أإآءئؤ")
 # Les quatre emphatiques et leur contrepartie simple, dans les deux sens.
 EMPHATIQUES = {"ص": "س", "ض": "د", "ط": "ت", "ظ": "ذ"}
