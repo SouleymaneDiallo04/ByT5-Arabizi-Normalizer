@@ -112,10 +112,11 @@ def creer_app(normaliseur=None, calibration=None, registre=None):
         c = calibration or Calibration.charger(CALIBRATION)
         # Un rang calcule sur les confiances d'un autre modele serait faux sans
         # que rien ne le signale : on refuse de demarrer.
-        if (c.modele, c.revision) != (n.nom, n.revision):
+        if (c.modele, c.revision, c.variante) != (n.nom, n.revision, n.variante):
             raise RuntimeError(
-                f"calibration de {c.modele}@{c.revision}, modèle servi "
-                f"{n.nom}@{n.revision} : relancer python -m service.calibrer")
+                f"calibration de {c.modele}@{c.revision} en {c.variante}, modèle "
+                f"servi {n.nom}@{n.revision} en {n.variante} : relancer "
+                "python -m service.calibrer")
         r = registre
         if r is None and DATABASE_URL:
             r = Registre(DATABASE_URL)
@@ -136,7 +137,9 @@ def creer_app(normaliseur=None, calibration=None, registre=None):
         lignes = [{"entree": t, "entree_propre": p, "sortie": s,
                    "confiance": c.rang(brute),
                    "confiance_brute": round(brute, 4), "complete": complete,
-                   "revision": n.revision}
+                   # La variante fait partie du modele servi : int8 et fp32
+                   # ne rendent pas tout a fait les memes sorties.
+                   "revision": f"{n.revision}:{n.variante}"}
                   for t, p, (s, brute, complete) in zip(textes, propres, sorties)]
         ids = [None] * len(lignes)
         if r is not None:
@@ -171,7 +174,8 @@ def creer_app(normaliseur=None, calibration=None, registre=None):
     def sante(request: Request):
         n, c = request.app.state.normaliseur, request.app.state.calibration
         return {"statut": "pret", "modele": n.nom, "revision": n.revision,
-                "appareil": n.appareil, "phrases_calibration": len(c.scores),
+                "appareil": n.appareil, "variante": n.variante,
+                "phrases_calibration": len(c.scores),
                 "registre": request.app.state.registre is not None}
 
     return app

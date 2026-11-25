@@ -14,6 +14,12 @@ REVISION = os.environ.get("MODELE_REVISION",
 CALIBRATION = os.environ.get(
     "CALIBRATION", os.path.join(os.path.dirname(__file__), "calibration.json"))
 
+# Modele servi quantifie en entier 8 bits, 116 couches sur 129 (journal du
+# 20 novembre) : 2,4 fois plus leger et 38 % plus rapide, pour +0,9 % de CER.
+# QUANTIFIE=0 sert le modele en pleine precision, avec sa propre calibration
+# (CALIBRATION) : la quantification deplace les confiances.
+QUANTIFIE = os.environ.get("QUANTIFIE", "1") != "0"
+
 # Phrases par requete de lot (EF-06). Au-dela, mieux vaut plusieurs requetes :
 # sur processeur, un lot de 16 prend deja une quinzaine de secondes.
 MAX_LOT = int(os.environ.get("MAX_LOT", 64))

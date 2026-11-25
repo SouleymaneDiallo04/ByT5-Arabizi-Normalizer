@@ -39,7 +39,7 @@ snapshot_download(MODELE, revision=REVISION, allow_patterns=[ \
     'tokenizer_config.json', 'added_tokens.json'])" \
  && chown -R service /opt/hf
 
-COPY modele/__init__.py modele/inference.py modele/
+COPY modele/__init__.py modele/inference.py modele/quantification.py modele/
 COPY service/ service/
 COPY registre/__init__.py registre/schema.py registre/depot.py registre/
 

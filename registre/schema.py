@@ -35,7 +35,7 @@ predictions = Table(
     Column("confiance", Float, nullable=False),      # rang calibre (PO-05)
     Column("confiance_brute", Float, nullable=False),
     Column("complete", Boolean, nullable=False),
-    Column("revision", Text, nullable=False),        # du modele servi
+    Column("revision", Text, nullable=False),        # du modele servi : sha:variante
     Column("statut", String(16), nullable=False, server_default="a_valider"),
     CheckConstraint(_parmi("statut", STATUTS), name="statut_connu"),
     Index("a_valider_par_confiance", "statut", "confiance"),

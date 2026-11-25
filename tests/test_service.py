@@ -23,7 +23,7 @@ TRANSCRIPTION = {"chrit 3 tomobilat": "شريت 3 طوموبيلات", "kanbghik
 
 
 class FauxNormaliseur:
-    nom, revision, appareil = "modele-test", "rev-test", "cpu"
+    nom, revision, appareil, variante = "modele-test", "rev-test", "cpu", "fp32"
 
     def __init__(self):
         self.recus = []
@@ -120,6 +120,7 @@ def test_sante(client):
     d = client.get("/sante").json()
     assert d["statut"] == "pret" and d["revision"] == "rev-test"
     assert d["phrases_calibration"] == 100
+    assert d["variante"] == "fp32"
 
 
 def test_calibration_d_un_autre_modele_refusee(faux):
@@ -127,6 +128,25 @@ def test_calibration_d_un_autre_modele_refusee(faux):
     with pytest.raises(RuntimeError, match="calibration"):
         with TestClient(creer_app(faux, autre)):
             pass
+
+
+def test_calibration_d_une_autre_variante_refusee(faux):
+    """La confiance du modele quantifie n'est pas celle du fp32 : un rang
+    calcule sur l'une serait faux pour l'autre."""
+    quantifiee = Calibration(CALIBRATION.scores, "modele-test", "rev-test", "int8")
+    with pytest.raises(RuntimeError, match="int8"):
+        with TestClient(creer_app(faux, quantifiee)):
+            pass
+
+
+def test_calibration_lit_sa_variante(tmp_path):
+    ancienne = tmp_path / "ancienne.json"
+    ancienne.write_text('{"modele": "m", "revision": "r", "scores": [0.5]}')
+    assert Calibration.charger(ancienne).variante == "fp32"
+    nouvelle = tmp_path / "nouvelle.json"
+    nouvelle.write_text('{"modele": "m", "revision": "r", "variante": "int8", '
+                        '"scores": [0.5]}')
+    assert Calibration.charger(nouvelle).variante == "int8"
 
 
 def test_rang():
@@ -181,7 +201,7 @@ def test_une_prediction_enregistree(client_registre, registre):
     assert p["sortie"] == d["sortie"] == "شريت 3 طوموبيلات"
     assert p["confiance"] == d["confiance"]
     assert p["confiance_brute"] == d["confiance_brute"]
-    assert p["complete"] is True and p["revision"] == "rev-test"
+    assert p["complete"] is True and p["revision"] == "rev-test:fp32"
     assert p["statut"] == "a_valider"
 
 

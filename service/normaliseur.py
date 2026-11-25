@@ -5,7 +5,7 @@ import threading
 import unicodedata
 
 from modele.inference import MAX_SOURCE, decoder
-from service.config import MODELE, REVISION
+from service.config import MODELE, QUANTIFIE, REVISION
 
 # Le tokenizer ajoute un octet de fin de sequence, compte dans MAX_SOURCE.
 MAX_OCTETS = MAX_SOURCE - 1
@@ -24,15 +24,28 @@ class Normaliseur:
     l'API remplacent cette classe et n'ont pas besoin de transformers.
     """
 
-    def __init__(self, modele=MODELE, revision=REVISION, appareil=None):
+    def __init__(self, modele=MODELE, revision=REVISION, appareil=None,
+                 quantifie=QUANTIFIE):
         import torch
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
+        # La quantification dynamique de torch n'existe que sur processeur.
+        if quantifie and appareil not in (None, "cpu"):
+            raise ValueError(f"modele quantifie demande sur {appareil} : la "
+                             "quantification dynamique ne tourne que sur "
+                             "processeur (QUANTIFIE=0 pour le GPU)")
+        if quantifie:
+            appareil = "cpu"
         self.nom, self.revision = modele, revision
         self.appareil = appareil or ("cuda" if torch.cuda.is_available() else "cpu")
         self.tok = AutoTokenizer.from_pretrained(modele, revision=revision)
         self.modele = (AutoModelForSeq2SeqLM.from_pretrained(modele, revision=revision)
                        .to(self.appareil).eval())
+        self.variante = "fp32"
+        if quantifie:
+            from modele.quantification import quantifier_modele
+            self.modele, _ = quantifier_modele(self.modele)
+            self.variante = "int8"
         # Une requete a la fois. Sur processeur, une seule phrase occupe deja
         # toute la machine : en decoder deux ensemble les ralentirait toutes
         # les deux, sans rien gagner.

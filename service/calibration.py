@@ -13,11 +13,16 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Calibration:
-    """Confiances de reference, triees, et le modele qui les a produites."""
+    """Confiances de reference, triees, et le modele qui les a produites.
+
+    La variante, fp32 ou int8, en fait partie : la quantification deplace les
+    confiances, et un rang calcule sur l'une serait faux pour l'autre.
+    """
 
     scores: tuple
     modele: str
     revision: str
+    variante: str = "fp32"
 
     def __post_init__(self):
         if not self.scores:
@@ -32,7 +37,10 @@ class Calibration:
         """Lit le fichier ecrit par `service.calibrer`."""
         with open(chemin, encoding="utf-8") as f:
             d = json.load(f)
-        return cls(tuple(d["scores"]), d["modele"], d["revision"])
+        # Les fichiers anterieurs a la quantification ne portent pas de
+        # variante : ils ont ete calcules en fp32.
+        return cls(tuple(d["scores"]), d["modele"], d["revision"],
+                   d.get("variante", "fp32"))
 
     def rang(self, confiance):
         """Part des phrases de developpement moins sures, en centiemes.
