@@ -10,6 +10,68 @@ Les plus récentes d'abord.
 
 ---
 
+## 25 novembre 2026 — Des paires tirées de darija en écriture arabe n'apporteraient presque rien de ce qui manque
+
+**Question.** `lid-dataset-base` et `fw-darija` offrent des centaines de
+milliers de phrases de darija en écriture arabe, sans arabizi en face. En
+fabriquer l'arabizi en ferait des paires d'entraînement, comme celles de
+NileChat. Avant d'y consacrer du GPU, deux questions : ces textes contiennent-ils
+ce qui manque au modèle, et peut-on fabriquer sans GPU un arabizi qui ressemble
+à celui des humains ? `python -m evaluation.textes_darija byt5_melange3.csv`.
+
+**Ce qui manque au modèle.** Sur les 850 phrases du test, le mélange 3 rate
+1 179 mots de la référence. 199, soit 16,9 %, n'apparaissent ni dans le corpus
+du projet ni dans NileChat, et 26,2 % manquent au seul corpus du projet. Le
+modèle n'ayant vu qu'un tirage de NileChat, la part réelle est entre les deux.
+Les autres mots faux, de 73,8 à 83,1 %, ont été vus à l'entraînement et sont
+mal écrits : voyelles, découpage, variantes. Des textes nouveaux ne les visent
+pas.
+
+**Ce que les textes en contiennent.**
+
+| | mots faux | jamais vus | présents dans les textes | trois fois ou plus |
+|---|---:|---:|---:|---:|
+| tout le test | 1 179 | 199 | 135 | 106 |
+| Guelmim | 27 | 9 | 5 | 2 |
+| Tetouan | 24 | 6 | 3 | 3 |
+
+Si le modèle apprenait chacun des 135 mots présents, il corrigerait 11,5 % de
+ses mots faux. C'est un plafond, qu'aucun entraînement n'atteint. Les formes qui
+manquent à Guelmim, `تكيم`, `نكيسو`, `الوثة`, n'apparaissent nulle part.
+
+**Volume.** Environ 1,05 million de phrases utilisables, c'est-à-dire courtes,
+portant un marqueur du darija et absentes du corpus comme de NileChat :
+815 307 de `fw-darija`, 152 246 d'Atlaset, 69 779 de Darija-LID. `fw-darija`
+mêle beaucoup d'arabe standard, des prix aux fatwas. Le volume n'est de toute
+façon pas ce qui manque : le mélange 3 n'a vu qu'environ 400 000 des 3,28
+millions de paires NileChat.
+
+**Arabizi fabriqué sans GPU**, comparé mot à mot à l'arabizi humain du test.
+
+| mots | méthode | CER | identiques |
+|---|---|---:|---:|
+| connus | graphie la plus fréquente de nos paires | 0,173 | 56,8 % |
+| inconnus | règles lettre à lettre | 0,298 | 19,7 % |
+
+La première ligne mesure la variation entre scripteurs, que nul générateur ne
+supprime. Les règles s'en écartent sur deux points que l'écriture arabe ne dit
+pas : les voyelles brèves (`tlfn` pour `talfan`) et le ك prononcé g (`kbil`
+pour `gbil`), qui est justement un trait régional.
+
+**Décision.** Pas de paires fabriquées à partir de ces textes pour l'instant :
+le plafond est bas, et les variétés qu'on voulait aider ne sont pas couvertes.
+La piste de données reste `moul_sout`, qui apporte de vraies paires et non un
+arabizi à fabriquer. AtlasIA a accordé l'accès au jeu de 71 112 paires le
+25 novembre au soir ; celui de 35 971 paires est encore en attente. Sa fiche ne
+dit ni sa provenance ni sa licence.
+
+**Limites.** Le test sert ici de diagnostic, comme pour le budget d'erreur :
+rien n'y est choisi. Un mot présent dans `fw-darija` peut y être de l'arabe
+standard, `فبها` y figure 351 fois. Le filtre des marqueurs du darija est
+sévère et écarte aussi de bonnes phrases sans marqueur.
+
+---
+
 ## 25 novembre 2026 — La validation humaine est en place
 
 **Décision.** La directive *Score de confiance et boucle de feedback* est
