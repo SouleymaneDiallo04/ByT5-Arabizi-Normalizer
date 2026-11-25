@@ -76,6 +76,28 @@ GROUPER_LONGUEUR = os.environ.get("GROUPER_LONGUEUR", "0") == "1"
 # passera aussi, et l'essai le prouve en quelques secondes.
 ESSAI_VITESSE = int(os.environ.get("ESSAI_VITESSE", 0))
 
+# Continuer depuis les poids d'un modele deja affine (un dossier checkpoint-N
+# ou un modele sauvegarde), avec un optimiseur neuf. MAX_PAS compte alors les
+# seuls nouveaux pas.
+#
+# Pourquoi pas la reprise complete du Trainer, etat de l'optimiseur compris.
+# Elle a ete essayee le 20 novembre sur le melange 3 : les poids se rechargeaient
+# bien, mais Adam fusionne refusait le premier pas, ses moments n'ayant plus le
+# type ou l'appareil des parametres, apres un rechargement qui signalait les
+# plongements de l'encodeur et du decodeur manquants. Repartir des poids evite
+# cette machinerie, et Adam reconstruit ses moments pendant l'echauffement.
+#
+# C'est un nouveau cycle de taux d'apprentissage et non un run plus long d'un
+# seul tenant, et il faut le lire ainsi. Le taux par defaut, 1e-4, est le tiers
+# du taux d'origine : celui auquel la reprise l'aurait fait remonter pour
+# prolonger 15 000 pas jusqu'a 22 500.
+CONTINUER = os.environ.get("CONTINUER")
+TAUX_CONTINUATION = float(os.environ.get("TAUX", 1e-4))
+ECHAUFFEMENT_CONTINUATION = 0.05
+# Au-dela, les poids charges sont faux : le melange 3 finissait a 0,1155, et un
+# modele aux plongements reinitialises depasse largement 1.
+SEUIL_DEPART = 1.0
+
 # Longueurs fixees sur la distribution reelle des octets du corpus : l'entree
 # ne depasse jamais 178 octets, la cible 280. Ces valeurs couvrent donc 100 %
 # des paires sans troncature, en gaspillant le moins de remplissage possible.
@@ -229,7 +251,19 @@ if __name__ == "__main__":
 
     set_seed(GRAINE)
     tokenizer = AutoTokenizer.from_pretrained(MODELE)
-    modele = AutoModelForSeq2SeqLM.from_pretrained(MODELE)
+    if CONTINUER:
+        if not MAX_PAS:
+            raise SystemExit("CONTINUER demande MAX_PAS, le nombre de nouveaux pas.")
+        print(f"continuation depuis {CONTINUER} : {MAX_PAS} nouveaux pas, taux "
+              f"{TAUX_CONTINUATION:g}, echauffement {ECHAUFFEMENT_CONTINUATION:.0%}")
+        # Le modele est construit depuis son propre dossier, avec sa propre
+        # configuration. Partir de google/byt5-small appliquerait la sienne,
+        # tie_word_embeddings=False, sous laquelle transformers 5 ne relie plus
+        # les plongements de l'encodeur et du decodeur a la matrice partagee :
+        # ils seraient reinitialises au hasard (journal, 15 novembre).
+        modele = AutoModelForSeq2SeqLM.from_pretrained(CONTINUER)
+    else:
+        modele = AutoModelForSeq2SeqLM.from_pretrained(MODELE)
 
     train = charger(TRAIN, echantillon)
     dev = charger(DEV, echantillon and max(echantillon // 10, 1))
@@ -257,22 +291,24 @@ if __name__ == "__main__":
         print(f"ESSAI DE VITESSE : {ESSAI_VITESSE} pas, sans evaluation ni "
               f"sauvegarde")
     elif MAX_PAS:
+        controle = max(MAX_PAS // 3, 1)
         cadence = dict(max_steps=MAX_PAS, save_strategy="steps",
-                       save_steps=max(MAX_PAS // 3, 1),
-                       eval_steps=max(MAX_PAS // 3, 1))
-        print(f"budget fixe a {MAX_PAS} pas, controle tous les "
-              f"{max(MAX_PAS // 3, 1)}")
+                       save_steps=controle, eval_steps=controle)
+        print(f"budget fixe a {MAX_PAS} pas, controle tous les {controle}")
     else:
         cadence = dict(num_train_epochs=EPOQUES, save_strategy="epoch")
 
     reglages = dict(
         output_dir=SORTIE_MODELE,
-        seed=GRAINE,
-        data_seed=GRAINE,
+        # En continuation, une graine decalee : la meme rejouerait les lots dans
+        # l'ordre exact du premier passage sur le meme fichier.
+        seed=GRAINE + 1 if CONTINUER else GRAINE,
+        data_seed=GRAINE + 1 if CONTINUER else GRAINE,
         per_device_train_batch_size=TAILLE_LOT,
         per_device_eval_batch_size=TAILLE_LOT,
         gradient_accumulation_steps=PAS_ACCUMULATION,
-        learning_rate=TAUX_APPRENTISSAGE,
+        learning_rate=TAUX_CONTINUATION if CONTINUER else TAUX_APPRENTISSAGE,
+        warmup_steps=int(MAX_PAS * ECHAUFFEMENT_CONTINUATION) if CONTINUER else 0,
         load_best_model_at_end=not ESSAI_VITESSE,
         **cadence,
         metric_for_best_model="eval_loss",
@@ -310,6 +346,15 @@ if __name__ == "__main__":
         callbacks=([] if ESSAI_VITESSE else
                    [EarlyStoppingCallback(early_stopping_patience=PATIENCE)]),
     )
+    if CONTINUER:
+        # Verifier les poids avant d'engager des heures de calcul : une perte de
+        # validation retrouvee prouve que le modele charge est bien celui qu'on
+        # croit, et pas un modele aux plongements reinitialises.
+        perte = entraineur.evaluate()["eval_loss"]
+        print(f"perte de validation au depart : {perte:.4f}")
+        if perte > SEUIL_DEPART:
+            raise SystemExit(f"Perte {perte:.4f} au-dela de {SEUIL_DEPART} : les "
+                             f"poids charges sont faux. Rien n'est entraine.")
     resultat = entraineur.train()
     if ESSAI_VITESSE:
         # La moyenne inclut la mise en route des premiers pas, plus lents. Elle

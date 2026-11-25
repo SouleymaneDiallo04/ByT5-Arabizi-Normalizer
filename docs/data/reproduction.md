@@ -78,6 +78,19 @@ python -m donnees.merge_all
 python -m donnees.make_splits
 ```
 
+## Ajouter une source à un corpus déjà découpé
+
+Ne pas relancer `make_splits` : il tire de nouveau le `dev` parmi toutes les
+phrases, et une seule ligne ajoutée le renouvellerait entièrement.
+
+```bash
+python -m donnees.ajouter_source nouvelle_source.csv train_v2.csv
+BASE_CSV=train_v2.csv python -m donnees.melanger nilechat_translit.csv 0.584 15000
+```
+
+Le script recopie `train.csv`, laisse `dev.csv` et `test_real.csv` intacts, et
+n'ajoute que les paires qui ne recoupent ni l'un ni l'autre.
+
 ## Problèmes courants
 
 `ModuleNotFoundError: No module named 'evaluation'` (ou `'modele'`, `'donnees'`)

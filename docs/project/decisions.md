@@ -10,6 +10,216 @@ Les plus récentes d'abord.
 
 ---
 
+## 25 novembre 2026 — Devant tous les modèles publics mesurés
+
+**Mesure.** `evaluation/comparer_modeles.py` fait passer les modèles publics de
+translittération sur les mêmes phrases de TerjamaBench, par la même mesure.
+Mode d'appel choisi sur les 172 phrases de réglage, chiffres sur les 678
+d'évaluation :
+
+| système | domaine visé | CER | WER | exactitude |
+|---|---|---:|---:|---:|
+| **mélange 3 (nous)** | darija marocain | **0,1033** | **38,9 %** | **32,2 %** |
+| akachkach, ByT5 | darija | 0,2477 | 48,1 % | 24,3 % |
+| baseline, dictionnaire et règles | darija marocain | 0,1699 | 50,4 % | 17,6 % |
+| AtlasIA, Transformer, mot par mot | darija marocain | 0,2929 | 69,0 % | 9,9 % |
+| masterofaudio, ByT5, mot par mot | arabe du Golfe | 0,2499 | 73,2 % | 9,3 % |
+| Khenafif, mBART | darija algérien | 0,6055 | 93,0 % | 0,4 % |
+
+Le mT5 de Haitam03, entraîné sur `doda_synthetic`, une de nos sources, reste à
+mesurer.
+
+**Trois pièges, et ce qu'ils auraient fait conclure.**
+
+- **Le modèle d'AtlasIA est entraîné sur des mots.** Appelé sur des phrases
+  entières, il paraissait à 0,78 de CER ; mot par mot et en minuscules, il est
+  à 0,30 sur le réglage. Son tokenizer ne distingue pas une coupure dans un mot
+  d'une limite de mots, et il perd des mots, `daba` par exemple.
+- **Les poids partagés.** Un T5 sauvegardé par transformers 4 avec
+  `tie_word_embeddings=False` n'écrit ses plongements qu'une fois, et
+  transformers 5 réinitialise ceux qu'il ne trouve pas : le modèle aurait
+  produit du charabia. Le script relie ces matrices, et lit les clés dans le
+  fichier lui-même plutôt que dans le rapport de chargement.
+- **Le préfixe d'entrée.** Deux modèles n'en documentent aucun : le meilleur de
+  six essais est gardé, et leur score peut être un peu sous-estimé.
+
+**Ce que ça entraîne.** Nous ne sommes pas passés à côté d'un modèle public
+déjà meilleur. Le score d'AtlasIA ne tranche pas la question d'un petit
+Transformer dédié : il est plombé par son tokenizer et son entraînement sur des
+mots isolés, sans contexte.
+
+---
+
+## 22 novembre 2026 — Le WER rejoint les deux métriques imposées
+
+**Constat.** Le cadrage impose d'optimiser l'exactitude de phrase et le CER. Les
+deux se sont contredits sur le modèle prolongé : meilleur CER, moins de phrases
+exactes. Et le problème que décrit le cadrage est un vocabulaire fragmenté, or
+aucune des deux ne mesure au niveau du mot : l'exactitude perd toute une phrase
+pour une lettre, le CER dilue un mot entièrement faux.
+
+**Décision.** Les trois métriques sont rapportées, et **le WER départage deux
+modèles quand l'exactitude et le CER se contredisent.**
+
+| 678 phrases d'évaluation | baseline | mélange 3 |
+|---|---:|---:|
+| exactitude de phrase | 17,6 % | 32,2 % |
+| CER | 0,1699 | 0,1033 |
+| WER | 0,5042 | 0,3891 |
+
+**Écartées après mesure.** La part de mots ramenés à une seule forme est la plus
+proche de l'objectif, mais elle ne repose que sur 80 mots du jeu de test, et un
+modèle qui ramènerait toutes les variantes vers une forme fausse y serait
+parfait. L'exactitude à la convention près redéfinit ce qui est juste, et reste
+un outil de diagnostic. Le taux de lettres dans le bon alphabet est déjà à
+99,9 %. La latence n'est pas une métrique à optimiser : c'est une contrainte du
+cadrage, vérifiée sur le modèle final.
+
+---
+
+## 21 novembre 2026 — DODa-audio n'apporte que 360 paires, et non 3 668
+
+**Correction.** Le journal du 12 novembre annonçait 3 668 paires nouvelles, et
+leur intégration était attendue comme un apport au corpus. Ce chiffre est faux.
+Il soustrayait les 8 697 paires de la V3 *restées sous son nom* après la fusion
+aux 12 365 paires du nouveau dépôt. Or la fusion avait retiré de la V3 ses
+doublons avec DODa-10K et `doda_synthetic` : ces paires étaient déjà dans le
+corpus, sous le nom d'une autre source.
+
+| les 12 365 paires distinctes de DODa-audio | paires |
+|---|---:|
+| déjà dans la V3 | 11 505 |
+| nouvelles par rapport à la V3, mais déjà dans le train via `doda_synthetic` | 338 |
+| idem, via DODa-10K | 95 |
+| même paire déjà dans le dev | 9 |
+| partagent un côté avec le dev, donc interdites à l'entraînement | 16 |
+| partagent un côté avec le test, donc interdites à l'entraînement | 42 |
+| **vraiment nouvelles** | **360** |
+
+Ces 360 paires font 0,19 % de l'entraînement, ont deux mots en médiane, et 207
+d'entre elles sont marquées `conflit`.
+
+**Décision.** Pas de nouvelle version du corpus pour elles seules, et pas
+d'entraînement : un tel apport serait indétectable, l'expérience précédente
+montrant qu'un écart bien plus grand reste dans le bruit. Elles seront intégrées
+avec la prochaine vraie source.
+
+**Ce que ça entraîne.** Une source s'ajoute désormais par
+`donnees/ajouter_source.py`, et plus en relançant `make_splits.py`, qui tire le
+dev parmi toutes les phrases : une seule ligne ajoutée renouvellerait tout le
+dev, ferait évaluer les modèles existants sur du déjà vu, et rendrait les pertes
+de validation incomparables. Le nouvel outil recopie le train, garde le dev et le
+test intacts, et rend compte de chaque ligne écartée.
+
+---
+
+## 21 novembre 2026 — Prolonger le mélange 3 : un gain trop faible pour être établi
+
+**Question.** La perte de validation du mélange 3 baissait encore à son dernier
+contrôle. Le modèle gagne-t-il à apprendre plus longtemps ?
+
+**Expérience.** Depuis les poids du mélange 3 au pas 15 000, sur le même fichier
+de 960 000 lignes : 7 500 pas de plus, optimiseur neuf, taux 1e-4, échauffement
+de 5 %, décroissance linéaire jusqu'à zéro, graine de tirage décalée. Soit 5 h 43
+de GPU. C'est un nouveau cycle de taux et non un run de 22 500 pas d'un seul
+tenant. La reprise complète du Trainer a d'abord été essayée : les poids se
+rechargeaient, mais Adam fusionné refusait le premier pas.
+
+| | mélange 3 | prolongé |
+|---|---:|---:|
+| perte de validation | 0,1155 | 0,1136 |
+| réglage, 172 phrases : CER | 0,1179 | 0,1119 |
+| réglage : phrases exactes | 51 | 51 |
+| évaluation, 678 phrases : CER | 0,1033 | 0,1004 |
+| évaluation : phrases exactes | 218 | 214 |
+| évaluation : phrases avec latin | 1 | 1 |
+
+**Test apparié**, phrase par phrase, test du signe :
+
+| | exactes gagnées / perdues | p | phrases meilleures / pires | p |
+|---|---:|---:|---:|---:|
+| réglage | 4 / 4 | 1,00 | 20 / 14 | 0,39 |
+| évaluation | 8 / 12 | 0,50 | 63 / 54 | 0,46 |
+
+**Lecture.** Le CER baisse sur les deux jeux, mais aucun des deux écarts, ni sur
+l'exactitude ni sur le sens de variation des phrases, ne se distingue du hasard.
+Le gain est réparti sur presque toutes les catégories d'erreurs, de 2126 à 2056
+opérations d'édition sur les 850 phrases : voyelles longues −26, autres
+consonnes −16, espaces −15, clitiques −6. C'est la signature d'un effet de durée,
+pas d'un mécanisme corrigé. La perte qui se stabilise en fin de cycle (0,1138
+puis 0,1136) ne prouve pas un plafond, le taux y arrivant à zéro.
+
+**Décision.** La règle fixée avant la mesure est remplie : perte de phrases
+exactes non significative, plus de phrases améliorées que dégradées, latin
+stable. Le modèle prolongé devient donc le candidat à livrer. Mais cette règle
+était faible, puisqu'elle n'exigeait pas que le gain soit significatif, et il ne
+l'est pas. **Il n'est donc pas republié pour l'instant** : publier impose de
+refaire la calibration et la mesure de quantification, un travail à faire une
+fois, pour un modèle nettement meilleur. Le service reste sur le mélange 3.
+
+**Ce que ça entraîne.** Allonger l'entraînement seul n'est pas le levier
+principal : la priorité passe aux données. À budget égal de 15 000 pas, les
+prochaines recettes se comparent au mélange 3.
+
+La ventilation montre aussi une asymétrie : le modèle écrit trop d'espaces (179
+en trop, 80 manquants), trop de ل collés ou isolés (129 contre 74) et trop de ا
+(318 contre 178). Elle a été relevée sur les 850 phrases : toute correction qui
+la viserait devra être réglée sur les 172 phrases de réglage seulement.
+
+---
+
+## 20 novembre 2026 — La quantification est retenue, sans sa tête ni la sortie des feed-forward de l'encodeur
+
+**Ce que ça renverse.** Le cahier des charges avait écarté la quantification :
+l'entier 8 bits sur toutes les couches linéaires multipliait le CER par 3,8.
+Le cadrage du projet demande pourtant un modèle quantifié et à faible latence.
+Plutôt que de juger la méthode d'un bloc, on a cherché où se logeait la
+dégradation (`evaluation/quantification.py`).
+
+**Sélection**, groupe par groupe, sur les 172 phrases de réglage, sur processeur :
+
+| groupe quantifié seul | couches | CER / fp32 |
+|---|---:|---:|
+| attention de l'encodeur | 48 | 1,00 |
+| entrée des feed-forward de l'encodeur | 24 | 1,00 |
+| **sortie des feed-forward de l'encodeur** | 12 | **1,19** |
+| attention du décodeur | 32 | 1,01 |
+| entrée des feed-forward du décodeur | 8 | 1,02 |
+| sortie des feed-forward du décodeur | 4 | 0,95 |
+| **tête de sortie (`lm_head`)** | 1 | **2,03** |
+
+Deux groupes portent toute la dégradation. La tête de sortie, une seule couche,
+double le CER : c'est elle qui choisit chaque octet, et la moindre perte de
+précision s'y lit directement. La sortie des feed-forward de l'encodeur est le
+défaut connu de la famille T5. La même couche dans le décodeur, elle, supporte
+l'entier 8 bits. Le 0,95 du décodeur est du bruit sur 172 phrases.
+
+Une hypothèse a été contredite au passage : quantifier « tout sauf la sortie
+des feed-forward » restait à ×2,03, parce que la tête y était incluse. C'est le
+découpage par groupe qui a désigné les vrais coupables.
+
+**Mesure finale**, une seule fois, sur les 678 phrases d'évaluation :
+
+| | taille | CER | exactitude | latence médiane | p90 |
+|---|---:|---:|---:|---:|---:|
+| baseline | — | 0,1699 | 17,6 % | — | — |
+| fp32 | 1 199 Mo | 0,1033 | 32,2 % | 0,990 s | 1,913 s |
+| **quantifié, 116 couches sur 129** | **493 Mo** | **0,1042** | **31,4 %** | **0,616 s** | **1,138 s** |
+
+**Décision.** Le service servira le modèle quantifié : 2,4 fois plus léger,
+38 % plus rapide en médiane et 40 % au p90, pour +0,9 % de CER relatif et
+−0,8 point d'exactitude, soit environ cinq phrases sur 678. La latence est
+mesurée sur deux cœurs Kaggle, plus lents que les quatre de la mesure du
+16 novembre ; seul le rapport entre les deux lignes compte.
+
+**Ce que ça entraîne.** La confiance du modèle quantifié n'est pas celle du
+modèle fp32 : la calibration doit être refaite sur lui avant qu'il soit servi,
+sans quoi le rang renvoyé serait faux. `torch.ao.quantization` est annoncé
+comme retiré au profit de `torchao` ; il fonctionne encore avec torch 2.12.1,
+la version de l'image, qui reste figée.
+
+---
+
 ## 16 novembre 2026 — Le service tient son contrat, et l'API ne coûte presque rien
 
 **Mesure.** Le service est lancé sur Kaggle, sur processeur (4 cœurs), avec le
@@ -358,6 +568,9 @@ l'extérieur.
 
 **Vérification.** Les 8 697 paires conservées de la V3 s'y retrouvent toutes,
 aucune perte, et **3 668 s'y ajoutent**. Licence MIT.
+
+*Corrigé le 21 novembre : ce chiffre est faux, 360 paires seulement sont
+nouvelles pour le corpus. Voir l'entrée de cette date.*
 
 **Effet de bord.** C'était la dernière source sans script. Le pipeline est
 intégralement reproductible, ce qu'exige ENF-04.
