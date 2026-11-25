@@ -10,6 +10,42 @@ Les plus récentes d'abord.
 
 ---
 
+## 21 novembre 2026 — DODa-audio n'apporte que 360 paires, et non 3 668
+
+**Correction.** Le journal du 12 novembre annonçait 3 668 paires nouvelles, et
+leur intégration était attendue comme un apport au corpus. Ce chiffre est faux.
+Il soustrayait les 8 697 paires de la V3 *restées sous son nom* après la fusion
+aux 12 365 paires du nouveau dépôt. Or la fusion avait retiré de la V3 ses
+doublons avec DODa-10K et `doda_synthetic` : ces paires étaient déjà dans le
+corpus, sous le nom d'une autre source.
+
+| les 12 365 paires distinctes de DODa-audio | paires |
+|---|---:|
+| déjà dans la V3 | 11 505 |
+| nouvelles par rapport à la V3, mais déjà dans le train via `doda_synthetic` | 338 |
+| idem, via DODa-10K | 95 |
+| même paire déjà dans le dev | 9 |
+| partagent un côté avec le dev, donc interdites à l'entraînement | 16 |
+| partagent un côté avec le test, donc interdites à l'entraînement | 42 |
+| **vraiment nouvelles** | **360** |
+
+Ces 360 paires font 0,19 % de l'entraînement, ont deux mots en médiane, et 207
+d'entre elles sont marquées `conflit`.
+
+**Décision.** Pas de nouvelle version du corpus pour elles seules, et pas
+d'entraînement : un tel apport serait indétectable, l'expérience précédente
+montrant qu'un écart bien plus grand reste dans le bruit. Elles seront intégrées
+avec la prochaine vraie source.
+
+**Ce que ça entraîne.** Une source s'ajoute désormais par
+`donnees/ajouter_source.py`, et plus en relançant `make_splits.py`, qui tire le
+dev parmi toutes les phrases : une seule ligne ajoutée renouvellerait tout le
+dev, ferait évaluer les modèles existants sur du déjà vu, et rendrait les pertes
+de validation incomparables. Le nouvel outil recopie le train, garde le dev et le
+test intacts, et rend compte de chaque ligne écartée.
+
+---
+
 ## 21 novembre 2026 — Prolonger le mélange 3 : un gain trop faible pour être établi
 
 **Question.** La perte de validation du mélange 3 baissait encore à son dernier
@@ -465,6 +501,9 @@ l'extérieur.
 
 **Vérification.** Les 8 697 paires conservées de la V3 s'y retrouvent toutes,
 aucune perte, et **3 668 s'y ajoutent**. Licence MIT.
+
+*Corrigé le 21 novembre : ce chiffre est faux, 360 paires seulement sont
+nouvelles pour le corpus. Voir l'entrée de cette date.*
 
 **Effet de bord.** C'était la dernière source sans script. Le pipeline est
 intégralement reproductible, ce qu'exige ENF-04.

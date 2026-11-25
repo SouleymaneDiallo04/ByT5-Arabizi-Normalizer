@@ -88,6 +88,7 @@ entraîner, mesurer.
 │   ├── make_splits.py              # jeu de test et découpage train / dev
 │   ├── decouper_test.py            # jeu de réglage prélevé dans le test
 │   ├── augmenter.py                # augmentation par graphies attestées
+│   ├── ajouter_source.py           # nouvelle source au train, dev et test intacts
 │   ├── melanger.py                 # mélange avec un corpus candidat, à budget fixe
 │   └── profil_corpus.py            # profil d'un candidat avant entraînement
 ├── modele/                         # entraîner

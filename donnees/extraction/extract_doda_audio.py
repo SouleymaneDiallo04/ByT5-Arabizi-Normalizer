@@ -5,8 +5,9 @@ recuperait a la main depuis Hugging Face, ce qui laissait un trou dans la
 reproductibilite exigee par ENF-04. Ce script le comble.
 
 Il vise \x60atlasia/DODa-audio-dataset\x60 et non la variante V3 employee jusqu'ici.
-Mesure : 12 721 paires exploitables contre 8 697 conservees de la V3 apres
-nettoyage, dont 3 668 absentes du corpus. La V3 y est contenue.
+Mesure : 12 721 lignes, soit 12 365 paires distinctes, dont 11 505 dans la V3
+qu'il contient entierement. Seules 360 sont absentes du corpus : les autres y
+figurent deja, souvent sous le nom de DODa-10K ou de doda_synthetic.
 
 Le jeu porte deux transcriptions arabes de chaque phrase. \x60darija_Arab_old\x60 est
 une transcription phonetique, vocalisee et ponctuee ; \x60darija_Arab_new\x60 suit une

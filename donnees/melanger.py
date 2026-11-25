@@ -27,6 +27,7 @@ Usage :
     python -m donnees.melanger nilechat_translit.csv 0.5 8760
 """
 
+import os
 import sys
 
 import pandas as pd
@@ -35,7 +36,11 @@ from huggingface_hub import hf_hub_download
 from donnees.make_splits import normaliser_cible, cle_arabe, cle_latine
 
 DEPOT = "sawti-nlp/darija-arabizi-corpus"
-BASE, TEST = "train.csv", "test_real.csv"
+# BASE_CSV choisit une autre base que le train d'origine, par exemple le
+# train_v2.csv produit par ajouter_source.py. Par defaut rien ne change, et les
+# melanges deja entraines restent rejouables a l'identique.
+BASE = os.environ.get("BASE_CSV", "train.csv")
+TEST = "test_real.csv"
 SORTIE = "train_melange.csv"
 
 # 8 760 pas de 16 exemples par carte, sur deux cartes, avec deux pas
