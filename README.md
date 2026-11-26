@@ -283,6 +283,17 @@ docker compose run --rm --no-deps -u root -e HF_HUB_OFFLINE=0 \
 docker compose build api                  # l'image embarque la nouvelle calibration
 ```
 
+La robustesse du modèle servi à un arabizi bruité (majuscules, lettres
+allongées, fautes, conventions d'un autre scripteur) se mesure de la même façon,
+en une heure environ ; `--relire` relit ensuite `robustesse.csv` sans décoder :
+
+```bash
+docker compose run --rm --no-deps -u root -e HF_HUB_OFFLINE=0 \
+    -e HF_TOKEN_PATH=/run/jeton -v ~/.cache/huggingface/token:/run/jeton:ro \
+    -v "$PWD:/app" --entrypoint sh api \
+    -c "pip install -q pandas==2.3.3 && python -m evaluation.robustesse_modele"
+```
+
 Les tests vérifient le contrat de l'API sans charger le modèle :
 
 ```bash

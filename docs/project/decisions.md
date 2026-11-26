@@ -10,6 +10,77 @@ Les plus récentes d'abord.
 
 ---
 
+## 26 novembre 2026 — Fautes, lettres allongées et mots collés : là où le modèle n'est pas robuste
+
+**Question.** ENF-08 vérifie qu'aucune entrée bruitée ne fait planter la
+baseline, sans rien dire de la qualité. Que perd le modèle servi quand
+l'arabizi n'est pas écrit comme dans TerjamaBench ?
+
+**Mesure.** `python -m evaluation.robustesse_modele`, dans l'image du service,
+sur le mélange 3 en int8 tel que servi. Chacun des 14 bruits s'applique seul à
+l'arabizi des 850 phrases, avec un tirage semé. Seules les phrases qu'un bruit
+modifie entrent dans sa mesure, comparées phrase par phrase à leur sortie
+propre. Pour les emojis et la ponctuation ajoutés, la comparaison se fait sans
+eux : le modèle n'est pas jugé sur leur recopie. Aucune entrée ne dépasse la
+limite de l'API. Le décodage de 8 483 entrées a pris une heure.
+
+| bruit, évaluation | phrases | CER propre → bruité | pires / meilleures | p | exactes perdues / gagnées |
+|---|---:|---:|---:|---:|---:|
+| faute de frappe, deux lettres voisines échangées | 670 | 0,102 → 0,157 | 467 / 33 | < 0,001 | 164 / 2 |
+| lettres allongées, *bzaaaaf* | 675 | 0,103 → 0,178 | 154 / 51 | < 0,001 | 48 / 14 |
+| voyelles omises dans un mot, *mzyn* | 659 | 0,102 → 0,135 | 318 / 49 | < 0,001 | 116 / 6 |
+| deux mots collés | 522 | 0,103 → 0,135 | 247 / 52 | < 0,001 | 58 / 14 |
+| emoji ajouté | 678 | 0,103 → 0,109 | 143 / 99 | 0,006 | 45 / 24 |
+| `h` pour `7` | 153 | 0,089 → 0,095 | 34 / 15 | 0,009 | 10 / 3 |
+| `5` pour `kh` | 120 | 0,097 → 0,099 | 19 / 8 | 0,05 | 3 / 1 |
+| tout en majuscules | 678 | 0,103 → 0,107 | 98 / 81 | 0,23 | 28 / 19 |
+| majuscule initiale | 575 | 0,102 → 0,102 | 113 / 101 | 0,45 | 42 / 23 |
+| ponctuation répétée | 678 | 0,097 → 0,098 | 108 / 98 | 0,53 | 33 / 27 |
+| `sh` pour `ch` | 260 | 0,097 → 0,091 | 27 / 35 | 0,37 | 9 / 2 |
+| `x` pour `ch` | 260 | 0,097 → 0,100 | 41 / 35 | 0,57 | 11 / 3 |
+| `u` pour `ou` | 79 | 0,093 → 0,098 | 11 / 6 | 0,33 | 2 / 0 |
+| `q` pour `9` | 132 | 0,096 → 0,096 | 19 / 21 | 0,88 | 4 / 3 |
+
+Le réglage, 172 phrases, donne le même classement pour les quatre premiers
+bruits : 117 / 14 pour la faute, 44 / 18 pour l'allongement, 78 / 21 pour les
+voyelles, 61 / 15 pour les mots collés.
+
+**Lecture.** Le modèle tient les conventions d'écriture : `sh`, `x`, `u`, `q`
+et la ponctuation ne le dérangent pas, ce qui reflète la variété des graphies
+de son corpus. Il ne tient pas les accidents de frappe. Une seule faute dans
+une phrase la dégrade dans 70 % des cas et lui fait perdre son exactitude dans
+164 cas sur 670.
+
+Trois défaillances se répètent dans les exemples :
+
+- **Emballement.** `AAAAch kifek ?` donne « آاااا… » jusqu'à la longueur
+  maximale. Les lettres allongées en produisent 7 sur 847 phrases, un emoji 2.
+  Un emoji ou deux mots collés font aussi répéter un segment : « ف سي ڤي ف سي
+  ڤي… ».
+- **Arrêt prématuré.** Le modèle s'arrête après le premier point d'une entrée à
+  plusieurs phrases : 2 des 22 entrées de ce genre sans bruit, en int8, 1 en
+  fp32. Omettre des voyelles en coupe 10 de plus. Une seule phrase ainsi coupée
+  pèse lourd : les phrases 0825 et 0832 font un quart des erreurs du réglage
+  propre. C'est pourquoi ce tableau juge au test du signe, et non au seul CER,
+  qu'un bruit qui fait reprendre la phrase coupée semble améliorer.
+- **Changement de registre.** Tout en majuscules, la sortie passe à une
+  transcription phonétique : قاميجا pour قميجة, والاكين pour ولكن. Une
+  majuscule initiale fait perdre des formules : *Laysmehlina* donne لايسمح au
+  lieu de الله يسمح.
+
+**Ce que ça entraîne.** Deux voies, à régler sur les 172 phrases de réglage et
+à mesurer sur l'évaluation :
+
+- un prétraitement dans le service, sans réentraînement, pour ce qu'une règle
+  sûre peut traiter : les lettres répétées, les emojis, et le découpage en
+  phrases contre l'arrêt prématuré ;
+- un entraînement bruité, pour ce qu'aucune règle ne corrige : les fautes, les
+  voyelles omises, les mots collés. L'augmentation de graphies du 12 novembre
+  n'avait rien changé sur le test propre, mais elle n'avait pas été mesurée sur
+  un test bruité.
+
+---
+
 ## 26 novembre 2026 — `moul_sout` apprend au modèle à laisser le français en latin
 
 **Question.** Les 68 152 paires de `moul_sout`, de la parole retranscrite,
