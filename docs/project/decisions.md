@@ -10,6 +10,65 @@ Les plus récentes d'abord.
 
 ---
 
+## 26 novembre 2026 — Sans son latin, `moul_sout` donne le meilleur modèle mesuré
+
+**Question.** Les 17 212 lignes de `moul_sout` qui portent du latin côté arabe
+apprennent au modèle à recopier le français (entrée suivante). Sans elles, que
+vaut le reste de la source ?
+
+**Expérience.** La même reprise, à une variable près : `extract_moul_sout.py`
+écarte désormais ces lignes. `ajouter_source.py` ajoute 52 443 lignes, dont
+52 086 de `moul_sout`, et `train_v3.csv` compte 239 304 lignes. Depuis les
+poids du mélange 3 : 7 500 pas, mêmes réglages, 5 h 19 d'entraînement.
+
+**Règle fixée avant la mesure.** Contre le témoin prolongé, sur l'évaluation, le
+modèle devient candidat s'il garde au plus 2 phrases en latin, ne perd pas
+significativement de phrases exactes, et améliore plus de phrases qu'il n'en
+dégrade. Il ne remplace le modèle servi que si le test du signe contre le
+mélange 3 donne p < 0,05.
+
+| | mélange 3 | prolongé | `moul_sout` avec latin | **sans latin** |
+|---|---:|---:|---:|---:|
+| perte de validation | 0,1155 | 0,1136 | 0,1150 | 0,1148 |
+| réglage, 172 phrases : CER | 0,1179 | 0,1119 | 0,1136 | **0,0967** |
+| réglage : phrases exactes | 51 | 51 | 56 | 54 |
+| évaluation, 678 phrases : CER | 0,1033 | 0,1004 | 0,1153 | **0,0946** |
+| évaluation : WER | 0,3891 | 0,3839 | 0,3728 | 0,3604 |
+| évaluation : phrases exactes | 218 | 214 | 223 | 220 |
+| évaluation : phrases avec latin | 1 | 1 | 25 | **0** |
+
+| test apparié, évaluation | phrases meilleures / pires | p | exactes gagnées / perdues | p |
+|---|---:|---:|---:|---:|
+| contre le témoin | 93 / 68 | 0,058 | 20 / 14 | 0,39 |
+| contre le mélange 3 | 102 / 70 | **0,018** | 20 / 18 | 0,87 |
+
+**Lecture.** Le latin a disparu : aucune phrase d'évaluation n'en garde, contre
+une pour tous les autres modèles. Contre le témoin, le CER baisse de 5,8 % sur
+l'évaluation et de 13,6 % sur le réglage. Le gain est réparti, mais d'abord
+sur les voyelles longues (−62 opérations) et les espaces (−34). Les espaces en
+trop passent de 179 à 129, avec 15 espaces manquants de plus : l'effet propre à
+`moul_sout`, déjà vu avec son latin, survit sans lui. Les phrases longues en
+profitent le plus : 0,085 à 0,070, 19 phrases meilleures contre 9.
+
+Rien ne se dégrade significativement. Les écarts défavorables sont petits et
+sur peu de phrases : Tétouan, 3 phrases meilleures contre 5 ; *common_phrases*,
+5 contre 11.
+
+**Décision.** Les trois conditions de candidature sont remplies, et le test
+contre le mélange 3 donne p = 0,018. Ce modèle remplace le mélange 3. Avant
+d'être servi, il doit être publié sur une révision du dépôt du modèle, privé,
+puis :
+
+- calibré, avec le décodage int8 d'une phrase à la fois ;
+- revérifié pour la quantification : les couches retenues l'ont été pour le
+  mélange 3 ;
+- mesuré au test de robustesse.
+
+**Limite.** La licence de `moul_sout` est inconnue, comme celle de NileChat. Le
+modèle qui en est tiré reste dans un dépôt privé tant qu'elle n'est pas éclaircie.
+
+---
+
 ## 26 novembre 2026 — Fautes, lettres allongées et mots collés : là où le modèle n'est pas robuste
 
 **Question.** ENF-08 vérifie qu'aucune entrée bruitée ne fait planter la
