@@ -34,15 +34,16 @@ témoin : même départ, même durée, sans les nouvelles paires.
 | évaluation : phrases exactes | 218 | 214 | 223 |
 | évaluation : phrases avec latin | 1 | 1 | **25** |
 
-**Lecture.** Le CER d'évaluation remonte de 12 % par rapport au mélange 3, et
-la cause est unique : le modèle recopie désormais le français tel quel, là où
-TerjamaBench l'écrit en arabe. Il sort *machine learning domaine* pour
-ماشين لرنينغ ضومين, *les astronautes*, *système digestif*, *bonne affaire*. Sur
-les 850 phrases, la catégorie « latin résiduel » passe de 38 à 407 opérations
-d'édition, quand le total ne monte que de 176, de 2 126 à 2 302. Les 25 phrases
-touchées viennent de *mixed_language* (12, dont le CER passe de 0,146 à 0,262),
+**Lecture.** Contre le témoin, le CER d'évaluation remonte de 15 %, et autant
+de phrases se dégradent qu'il s'en améliore : 88 contre 87. La cause est le
+latin : le modèle recopie désormais le français tel quel, là où TerjamaBench
+l'écrit en arabe. Il sort *machine learning domaine* pour ماشين لرنينغ ضومين,
+*les astronautes*, *système digestif*, *bonne affaire*. Sur les 850 phrases, la
+catégorie « latin résiduel » passe de 38 à 407 opérations d'édition, quand le
+total ne monte que de 246, de 2 056 à 2 302. Les 25 phrases
+touchées viennent de *mixed_language* (12, dont le CER passe de 0,144 à 0,262),
 *educational* (8), *incorrect_spellings* (4) et *long_sentences* (1).
-Casablanca, dont 16 phrases sortent en latin, passe de 0,133 à 0,211.
+Casablanca, dont 16 phrases sortent en latin, passe de 0,129 à 0,211.
 
 **Pourquoi `moul_sout` et pas daa-pairs.** `OiQ/daa-pairs`, déjà dans le corpus
 du mélange 3, garde lui aussi du latin dans 29 % de ses cibles, et le mélange 3
@@ -55,28 +56,29 @@ articles, sont des noms isolés : *ambiance*, *normal*, *projet*, *vidéo*. Avec
 seul ajout qui en porte : les 357 paires de DODa-audio n'en ont aucune, et le
 témoin, entraîné sans elles, en est resté à une phrase.
 
-**Hors latin, le modèle progresse.** Sur les phrases où aucune des deux sorties
-n'a de latin :
+**Hors latin, un gain faible et non établi.** Sur les phrases où aucune des
+deux sorties n'a de latin, contre le témoin :
 
-| | CER, mélange 3 → `moul_sout` | phrases meilleures / pires | p | exactes gagnées / perdues | p |
+| | CER, prolongé → `moul_sout` | phrases meilleures / pires | p | exactes gagnées / perdues | p |
 |---|---:|---:|---:|---:|---:|
-| réglage, 164 phrases | 0,1137 → 0,1013 | 28 / 16 | 0,10 | 9 / 4 | 0,27 |
-| évaluation, 653 phrases | 0,0984 → 0,0944 | 93 / 65 | 0,03 | 21 / 15 | 0,41 |
+| réglage, 164 phrases | 0,1092 → 0,1013 | 27 / 18 | 0,23 | 9 / 4 | 0,27 |
+| évaluation, 653 phrases | 0,0959 → 0,0944 | 87 / 64 | 0,07 | 22 / 12 | 0,12 |
 
-Le gain le plus net porte sur un défaut relevé le 21 novembre : sur ces 817
-phrases, les espaces en trop passent de 173 à 121, les manquantes de 84 à 85.
-Les ا en trop passent de 298 à 268.
+Contre le mélange 3, le même écart paraissait significatif, 93 phrases
+meilleures contre 65 (p = 0,03) : la durée d'entraînement en expliquait une
+partie. Ce que les données ajoutent porte surtout sur les espaces, un défaut
+relevé le 21 novembre. Sur ces 817 phrases, les espaces en trop passent de 171 à
+121, et les espaces manquants de 76 à 85. Le témoin, lui, n'avait retiré que 5
+espaces en trop au mélange 3. Pour ا et ل, en revanche, le modèle en écrit moins
+sans en écrire mieux : −28 ا en trop pour +22 manquants, −14 ل en trop pour +13
+manquants.
 
-Deux réserves. Cette sélection dépend des sorties : une phrase recopiée en latin
-en sort, et c'est un diagnostic, pas une mesure. Et la comparaison se fait
-contre le mélange 3 et non contre le témoin, dont les prédictions phrase par
-phrase n'ont pas été gardées : la part de la durée, qui à elle seule avait donné
-63 phrases meilleures contre 54 (p = 0,46), n'est pas séparée de celle des
-données.
+Cette sélection dépend des sorties, puisqu'une phrase recopiée en latin en sort :
+c'est un diagnostic, pas une mesure.
 
 Les 5 860 lignes trop longues, conservées elles aussi, ne montrent rien de
-nuisible : le thème *long_sentences* passe de 0,094 à 0,087, avec 20 phrases
-meilleures contre 9.
+nuisible : contre le témoin, le thème *long_sentences* reste à 0,087 contre
+0,085, avec 17 phrases meilleures et 13 pires.
 
 **Décision.** Ce modèle n'est pas retenu : la règle du 21 novembre exigeait un
 latin stable, et il passe de 1 à 25 phrases. Le service reste sur le mélange 3.
@@ -84,14 +86,17 @@ latin stable, et il passe de 1 à 25 phrases. Le service reste sur le mélange 3
 **Ce que ça entraîne.** Le latin côté cible de `moul_sout` n'est plus un soupçon,
 c'est une cause mesurée. Il tient dans 16 066 lignes, 23,6 % des paires
 retenues. Une reprise identique sans elles dirait ce que vaut le reste de la
-source.
+source. Le gain à en attendre est faible : hors latin, 1,6 % de CER sur
+l'évaluation contre le témoin, sans significativité. Le 21 novembre, un écart
+de 2,8 % était déjà resté indétectable.
 
-Les mesures se relancent avec :
+Les mesures se relancent avec les prédictions des trois modèles :
 
 ```bash
-python -m evaluation.apparier byt5_moulsout.csv byt5_melange3.csv
-python -m evaluation.apparier byt5_moulsout.csv byt5_melange3.csv --sans-latin
-python -m evaluation.erreurs byt5_moulsout.csv byt5_melange3.csv
+python -m evaluation.apparier byt5_moulsout.csv byt5_melange3_prolonge.csv
+python -m evaluation.apparier byt5_moulsout.csv byt5_melange3_prolonge.csv --sans-latin
+python -m evaluation.apparier byt5_melange3_prolonge.csv byt5_melange3.csv
+python -m evaluation.erreurs byt5_moulsout.csv byt5_melange3_prolonge.csv
 ```
 
 ---
