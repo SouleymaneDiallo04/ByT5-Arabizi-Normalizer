@@ -15,7 +15,8 @@ CALIBRATION = os.environ.get(
     "CALIBRATION", os.path.join(os.path.dirname(__file__), "calibration.json"))
 
 # Modele servi quantifie en entier 8 bits, 116 couches sur 129 (journal du
-# 20 novembre) : 2,4 fois plus leger et 38 % plus rapide, pour +0,9 % de CER.
+# 20 novembre) : 42 % plus rapide en mediane a travers l'API, pour un CER de
+# 0,1047 contre 0,1033 (journal du 26 novembre).
 # QUANTIFIE=0 sert le modele en pleine precision, avec sa propre calibration
 # (CALIBRATION) : la quantification deplace les confiances.
 QUANTIFIE = os.environ.get("QUANTIFIE", "1") != "0"

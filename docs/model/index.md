@@ -13,6 +13,10 @@ variable que l'arabizi.
 | premier entraînement | affinage complet, corpus du projet | 0,1087 | 29,4 % | `modèles_S/` |
 | **mélange 3** | affinage complet, corpus du projet et nilechat | **0,1033** | **32,2 %** | racine, **recommandé** |
 
+Le service sert le mélange 3 quantifié en entier 8 bits : CER 0,1047 et 31,3 %
+d'exactitude à travers l'API, pour une latence réduite de 42 % (journal du
+26 novembre).
+
 Mesures sur les 678 phrases de TerjamaBench réservées à l'évaluation ; les
 métriques et la discipline d'usage du jeu de test sont décrites dans
 {doc}`evaluation`. Le cheminement d'un modèle à l'autre, expériences sans effet
