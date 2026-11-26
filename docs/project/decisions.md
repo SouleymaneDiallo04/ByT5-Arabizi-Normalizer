@@ -71,8 +71,7 @@ d'évaluation :
 Le mT5 de Haitam03, entraîné sur `doda_synthetic`, une de nos sources, a été
 mesuré le 26 novembre avec son préfixe documenté, `transliterate_latin_darija: `.
 Il reste loin derrière, à 0,3867 de CER sur le réglage et 0,3121 sur
-l'évaluation : entraîné sur une seule de nos sources, il ne s'étend pas à
-l'arabizi de TerjamaBench.
+l'évaluation, trois fois le nôtre.
 
 **Trois pièges, et ce qu'ils auraient fait conclure.**
 
