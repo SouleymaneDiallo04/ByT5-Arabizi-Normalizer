@@ -214,12 +214,19 @@ résultats, par thème et par variété régionale, est dans la
 ## Service
 
 Le modèle est servi par une API REST documentée au format OpenAPI (EF-04).
+Il est **quantifié en entier 8 bits**, 116 couches linéaires sur 129 : la tête
+de sortie et la sortie des feed-forward de l'encodeur restent en pleine
+précision, parce qu'elles portent toute la dégradation. À travers l'API, il
+répond 42 % plus vite en médiane, pour un CER de 0,1047 contre 0,1033, et
+occupe 19 % de mémoire en moins en régime établi ; son pic au démarrage
+atteint toutefois 3 Go (journal du 26 novembre). `QUANTIFIE=0` sert la pleine
+précision.
 
 | Route | Rôle |
 |---|---|
 | `POST /normaliser` | une phrase : `{"texte": "chrit 3 tomobilat"}` |
 | `POST /normaliser/lot` | de 1 à 64 phrases, résultats dans le même ordre (EF-06) |
-| `GET /sante` | modèle, révision et appareil servis |
+| `GET /sante` | modèle, révision, variante (`int8` ou `fp32`) et appareil servis |
 | `GET /docs` | page Swagger, pour appeler l'API depuis le navigateur |
 
 ### Avec Docker (ENF-01)
@@ -258,9 +265,23 @@ Chaque résultat porte :
 Quelques règles, qui évitent des résultats faux sans signalement :
 
 - **Une phrase ne dépasse pas 191 octets**, la longueur lue par le modèle à l'entraînement. Au-delà, le service répond 422 au lieu de tronquer l'entrée en silence.
-- **Le modèle est figé à une révision du dépôt Hugging Face** (`service/config.py`), et le service refuse de démarrer si `service/calibration.json` a été calculé pour une autre. `python -m service.calibrer` le recalcule.
+- **Le modèle est figé à une révision du dépôt Hugging Face** (`service/config.py`), et le service refuse de démarrer si `service/calibration.json` a été calculé pour une autre révision ou une autre variante : la quantification déplace les confiances. `python -m service.calibrer` le recalcule (voir plus bas).
 - **Transformers 5 est requis.** Le `config.json` publié ne se charge correctement qu'avec cette version ; voir le journal des décisions.
 - Le dépôt Hugging Face est privé : définir `HF_TOKEN` avant de lancer le service.
+
+La calibration se refait sur processeur, avec le torch de l'image, dans un
+conteneur jetable : `pandas` et `scipy` n'y sont installés que le temps de la
+commande, et le jeton Hugging Face local est monté en lecture seule pour lire
+le jeu de développement, privé. Compter trois quarts d'heure pour 2 000 phrases.
+
+```bash
+docker compose build api
+docker compose run --rm --no-deps -u root -e HF_HUB_OFFLINE=0 \
+    -e HF_TOKEN_PATH=/run/jeton -v ~/.cache/huggingface/token:/run/jeton:ro \
+    -v "$PWD:/app" --entrypoint sh api \
+    -c "pip install -q pandas==2.3.3 scipy==1.18.1 && python -m service.calibrer"
+docker compose build api                  # l'image embarque la nouvelle calibration
+```
 
 Les tests vérifient le contrat de l'API sans charger le modèle :
 

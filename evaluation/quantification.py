@@ -25,7 +25,6 @@ Usage, depuis la racine du depot :
 """
 
 import argparse
-import re
 import time
 
 import pandas as pd
@@ -37,20 +36,9 @@ from donnees.decouper_test import prelever
 from evaluation.evaluate import mesurer, normaliser
 from evaluation.mesures import DEPOT_DONNEES, latence, taille_mo
 from modele.inference import predire
+from modele.quantification import GROUPES, couches, quantifier
 from service.config import MODELE, REVISION
 
-# Couches lineaires de ByT5, par role. Le decodeur a trois sous-couches par
-# bloc (auto-attention, attention croisee, feed-forward), l'encodeur deux.
-GROUPES = {
-    "enc_attention": r"^encoder\.block\.\d+\.layer\.0\.SelfAttention\.[qkvo]$",
-    "enc_ffn_entree": r"^encoder\.block\.\d+\.layer\.1\.DenseReluDense\.wi(_\d)?$",
-    "enc_ffn_sortie": r"^encoder\.block\.\d+\.layer\.1\.DenseReluDense\.wo$",
-    "dec_attention": r"^decoder\.block\.\d+\.layer\.[01]\."
-                     r"(SelfAttention|EncDecAttention)\.[qkvo]$",
-    "dec_ffn_entree": r"^decoder\.block\.\d+\.layer\.2\.DenseReluDense\.wi(_\d)?$",
-    "dec_ffn_sortie": r"^decoder\.block\.\d+\.layer\.2\.DenseReluDense\.wo$",
-    "tete": r"^lm_head$",
-}
 # Un groupe dont la quantification seule degrade le CER de moins de 2 % est
 # juge inoffensif, et rejoint la combinaison finale. Les configurations sont
 # comparees sur les memes phrases : l'ecart ne doit rien au tirage.
@@ -61,33 +49,6 @@ PHRASES_LATENCE = 50
 def charger_modele():
     """Le modele servi, a la revision figee du service, en pleine precision."""
     return AutoModelForSeq2SeqLM.from_pretrained(MODELE, revision=REVISION).eval()
-
-
-def couches(modele):
-    """Noms des couches lineaires de chaque groupe.
-
-    S'arrete si un groupe ne trouve aucune couche : un motif qui ne correspond
-    plus aux noms du modele ferait passer une configuration pour inoffensive
-    alors qu'elle n'aurait rien quantifie.
-    """
-    lineaires = [n for n, m in modele.named_modules() if isinstance(m, torch.nn.Linear)]
-    par_groupe = {g: [n for n in lineaires if re.match(motif, n)]
-                  for g, motif in GROUPES.items()}
-    vides = [g for g, noms in par_groupe.items() if not noms]
-    if vides:
-        raise SystemExit(f"groupes sans couche : {vides}\n"
-                         f"exemples de noms du modele : {lineaires[:6]}")
-    rangees = set().union(*map(set, par_groupe.values()))
-    return par_groupe, sorted(set(lineaires) - rangees)
-
-
-def quantifier(modele, noms):
-    """Quantification dynamique en entier 8 bits des seules couches nommees."""
-    try:
-        from torch.ao.quantization import quantize_dynamic
-    except ImportError:
-        from torch.quantization import quantize_dynamic
-    return quantize_dynamic(modele, set(noms), dtype=torch.qint8)
 
 
 def evaluer(nom, groupes, par_groupe, tok, donnees):

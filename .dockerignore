@@ -4,6 +4,7 @@
 !requirements-service.txt
 !modele/__init__.py
 !modele/inference.py
+!modele/quantification.py
 !service/
 !requirements-validation.txt
 !registre/

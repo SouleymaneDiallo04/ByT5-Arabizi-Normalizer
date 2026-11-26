@@ -10,6 +10,181 @@ Les plus récentes d'abord.
 
 ---
 
+## 26 novembre 2026 — La confiance dit surtout ce qu'on peut relire en dernier
+
+**Question.** L'interface de validation présente les prédictions les moins sûres
+d'abord. Ce classement trouve-t-il les erreurs ? La calibration l'avait vérifié
+sur le dev, tiré des mêmes sources que l'entraînement. Ici, on le vérifie sur
+les 678 phrases d'évaluation de TerjamaBench, avec la confiance du service tel
+qu'il est servi, en int8 : `python -m evaluation.relecture --service URL`. La
+relecture est simulée, de la phrase la moins sûre à la plus sûre. Rien n'est
+réglé.
+
+**Mesure.** 466 phrases sur 678 sont fausses, soit 68,7 %.
+
+| | AUROC |
+|---|---:|
+| les 678 phrases | 0,691 |
+| sans les 130 mots isolés | 0,776 |
+| les mots isolés seuls | 0,658 |
+
+L'AUROC est la probabilité qu'une phrase fausse soit moins sûre qu'une phrase
+juste : 0,5 pour le hasard, 1 pour une séparation parfaite.
+
+| sans les mots isolés, 548 phrases | fausses trouvées | erreurs trouvées | fausses parmi les relues |
+|---|---:|---:|---:|
+| relire les 10 % les moins sûres | 11,9 % | 13,1 % | 92,7 % |
+| relire les 20 % les moins sûres | 24,0 % | 25,7 % | 93,6 % |
+| relire la moitié la moins sûre | 58,4 % | 64,8 % | 91,6 % |
+| au hasard | la part relue | la part relue | 78,5 % |
+
+**Lecture.** Quand près de quatre phrases sur cinq sont fausses, presque toute
+relecture en trouve : le haut de la liste fait mieux que le hasard, mais de peu.
+La confiance vaut surtout par le bas. Le décile le plus sûr est exact à 77,9 %,
+avec un CER de 0,029. Ne pas relire les 10 % les plus sûres ne fait manquer que
+3,5 % des phrases fausses et 1,6 % des erreurs de caractère, et le double pour
+20 %.
+
+Les mots isolés expliquent une anomalie : ils forment 40 % du décile le moins
+sûr, plus souvent exact que les trois suivants. Un mot seul reçoit une confiance
+basse et se trouve juste ou faux d'un bloc. TerjamaBench en contient 19 % ; un
+service utilisé pour de vraies phrases en recevra sans doute moins.
+
+**Ce que ça entraîne.** L'ordre de l'interface est gardé. La directive veut que
+toute prédiction soit validée, et la confiance ne dispense de rien. Elle dit
+seulement ce qui peut attendre quand le temps manque : les phrases les plus
+sûres.
+
+---
+
+## 26 novembre 2026 — Le service sert le modèle quantifié
+
+**Décision.** La décision du 20 novembre est appliquée : le service charge le
+mélange 3, puis quantifie en entier 8 bits 116 de ses 129 couches linéaires. La
+tête de sortie et la sortie des feed-forward de l'encodeur restent en pleine
+précision. La sélection vit dans `modele/quantification.py`, que la mesure et le
+service partagent. `QUANTIFIE=0` sert la pleine précision.
+
+**Vérifié à travers l'API**, sur la même machine, conteneur du service, 678
+phrases d'évaluation puis 100 phrases envoyées une à une :
+
+| | fp32 | int8 |
+|---|---:|---:|
+| CER | 0,1033 | 0,1047 |
+| exactitude | 32,2 % | 31,3 % |
+| latence médiane d'une phrase | 2,10 s | 1,22 s |
+| p90 | 3,64 s | 2,03 s |
+
+Le fp32 retrouve exactement ses chiffres, ce qui valide la comparaison. L'int8
+est à 0,1047 contre 0,1042 sur Kaggle : les noyaux entiers diffèrent d'un
+processeur à l'autre. La latence baisse de 42 % en médiane et de 44 % au p90,
+pour six phrases exactes de moins sur 678.
+
+**La calibration est refaite sur le modèle quantifié**, dans l'image du service,
+sur les mêmes 2 000 phrases du dev : le fichier est identique entre les
+révisions `ab17817` et `422d77c` du corpus. La quantification déplace les
+confiances, médiane 0,9893 contre 0,9906, minimum 0,8752 contre 0,9036. Lues
+avec la table du fp32, elles seraient classées 0,06 trop bas en médiane, et 245
+phrases du dev au lieu de 190 tomberaient sous le rang 0,10 : 29 % de relectures
+en trop. La confiance reste un bon indicateur, avec un CER de 0,125 au premier
+décile et de 0,014 au dernier (Spearman +0,388). La calibration porte désormais
+sa variante, et le service refuse de démarrer sur la table d'une autre variante
+comme d'une autre révision. Le registre enregistre la variante avec la révision.
+
+**La mémoire.** Mémoire résidente du processus du service, lue dans
+`/proc/1/status`, après la même charge : 100 requêtes d'une phrase, puis 10 lots
+de 64.
+
+| | au démarrage | après la charge | pic |
+|---|---:|---:|---:|
+| fp32 | 368 Mo | 1 685 Mo | 1 825 Mo |
+| int8, première version | 1 852 Mo | 2 045 Mo, après 1 000 requêtes et 10 lots | 2 983 Mo |
+| int8, avec `gc.collect()` | 1 156 Mo | 1 370 Mo | 3 009 Mo |
+
+La première version gardait le modèle en pleine précision en mémoire. La
+quantification travaille sur une copie, et l'original, dont les modules se
+référencent entre eux, n'était pas libéré tant que le ramasse-miettes ne passait
+pas. Un `gc.collect()` après la quantification retire 700 Mo au démarrage, et le
+service quantifié occupe alors 19 % de moins que le fp32 en régime établi. Il ne
+fuit pas : sur 1 000 requêtes, la mémoire n'a pris que 44 Mo, par paliers. Le
+défaut qui reste est le pic du démarrage, 3,0 Go, quand original et copie
+coexistent : il tient dans les 3,75 Gio de Docker Desktop, sans marge.
+Quantifier en place évite la copie mais garde le fichier des poids projeté en
+mémoire, 1 580 Mo juste après le chargement.
+
+Le premier relevé, fait avec `docker stats`, donnait 0,9 Gio au fp32 et 2,1 au
+int8 : il compte la mémoire du conteneur autrement, et inversait le constat.
+
+**Pour un autre modèle.** Le code ne dépend pas du mélange 3, mais deux choses
+en dépendent et seront à refaire si un modèle meilleur le remplace : la
+calibration, environ 45 minutes de processeur (README, section Service), et la
+confirmation du choix des couches par
+`python -m evaluation.quantification --final enc_attention,enc_ffn_entree,dec_attention,dec_ffn_entree,dec_ffn_sortie`.
+
+---
+
+## 25 novembre 2026 — Des paires tirées de darija en écriture arabe n'apporteraient presque rien de ce qui manque
+
+**Question.** `lid-dataset-base` et `fw-darija` offrent des centaines de
+milliers de phrases de darija en écriture arabe, sans arabizi en face. En
+fabriquer l'arabizi en ferait des paires d'entraînement, comme celles de
+NileChat. Avant d'y consacrer du GPU, deux questions : ces textes contiennent-ils
+ce qui manque au modèle, et peut-on fabriquer sans GPU un arabizi qui ressemble
+à celui des humains ? `python -m evaluation.textes_darija byt5_melange3.csv`.
+
+**Ce qui manque au modèle.** Sur les 850 phrases du test, le mélange 3 rate
+1 179 mots de la référence. 199, soit 16,9 %, n'apparaissent ni dans le corpus
+du projet ni dans NileChat, et 26,2 % manquent au seul corpus du projet. Le
+modèle n'ayant vu qu'un tirage de NileChat, la part réelle est entre les deux.
+Les autres mots faux, de 73,8 à 83,1 %, ont été vus à l'entraînement et sont
+mal écrits : voyelles, découpage, variantes. Des textes nouveaux ne les visent
+pas.
+
+**Ce que les textes en contiennent.**
+
+| | mots faux | jamais vus | présents dans les textes | trois fois ou plus |
+|---|---:|---:|---:|---:|
+| tout le test | 1 179 | 199 | 135 | 106 |
+| Guelmim | 27 | 9 | 5 | 2 |
+| Tetouan | 24 | 6 | 3 | 3 |
+
+Si le modèle apprenait chacun des 135 mots présents, il corrigerait 11,5 % de
+ses mots faux. C'est un plafond, qu'aucun entraînement n'atteint. Les formes qui
+manquent à Guelmim, `تكيم`, `نكيسو`, `الوثة`, n'apparaissent nulle part.
+
+**Volume.** Environ 1,05 million de phrases utilisables, c'est-à-dire courtes,
+portant un marqueur du darija et absentes du corpus comme de NileChat :
+815 307 de `fw-darija`, 152 246 d'Atlaset, 69 779 de Darija-LID. `fw-darija`
+mêle beaucoup d'arabe standard, des prix aux fatwas. Le volume n'est de toute
+façon pas ce qui manque : le mélange 3 n'a vu qu'environ 400 000 des 3,28
+millions de paires NileChat.
+
+**Arabizi fabriqué sans GPU**, comparé mot à mot à l'arabizi humain du test.
+
+| mots | méthode | CER | identiques |
+|---|---|---:|---:|
+| connus | graphie la plus fréquente de nos paires | 0,173 | 56,8 % |
+| inconnus | règles lettre à lettre | 0,298 | 19,7 % |
+
+La première ligne mesure la variation entre scripteurs, que nul générateur ne
+supprime. Les règles s'en écartent sur deux points que l'écriture arabe ne dit
+pas : les voyelles brèves (`tlfn` pour `talfan`) et le ك prononcé g (`kbil`
+pour `gbil`), qui est justement un trait régional.
+
+**Décision.** Pas de paires fabriquées à partir de ces textes pour l'instant :
+le plafond est bas, et les variétés qu'on voulait aider ne sont pas couvertes.
+La piste de données reste `moul_sout`, qui apporte de vraies paires et non un
+arabizi à fabriquer. AtlasIA a accordé l'accès au jeu de 71 112 paires le
+25 novembre au soir ; celui de 35 971 paires est encore en attente. Sa fiche ne
+dit ni sa provenance ni sa licence.
+
+**Limites.** Le test sert ici de diagnostic, comme pour le budget d'erreur :
+rien n'y est choisi. Un mot présent dans `fw-darija` peut y être de l'arabe
+standard, `فبها` y figure 351 fois. Le filtre des marqueurs du darija est
+sévère et écarte aussi de bonnes phrases sans marqueur.
+
+---
+
 ## 25 novembre 2026 — La validation humaine est en place
 
 **Décision.** La directive *Score de confiance et boucle de feedback* est
