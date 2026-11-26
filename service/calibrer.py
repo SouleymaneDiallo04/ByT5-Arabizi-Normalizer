@@ -47,12 +47,8 @@ def main():
     confiances = [b for _, b, _ in resultats]
     incompletes = sum(not c for _, _, c in resultats)
 
-    # La table par decile verifie, au passage, que la confiance reste monotone
-    # pour ce modele : sans cela, en donner le rang n'aurait aucun sens.
-    table_confiance(dev["darija_norm"].map(normaliser),
-                    [normaliser(s) for s in sorties], confiances, "developpement")
-    print(f"\n  sorties incompletes : {incompletes} sur {len(sorties)}")
-
+    # Ecrite avant le diagnostic : sur processeur, le decodage prend trois quarts
+    # d'heure, et un echec du tableau ne doit pas le faire perdre.
     scores = sorted(confiances)
     with open(CALIBRATION, "w", encoding="utf-8") as f:
         json.dump({"modele": n.nom, "revision": n.revision, "variante": n.variante,
@@ -61,6 +57,12 @@ def main():
                    "scores": scores}, f, indent=1)
     print(f"  {len(scores)} confiances, de {scores[0]:.4f} a {scores[-1]:.4f}, "
           f"ecrites dans {CALIBRATION}")
+    print(f"  sorties incompletes : {incompletes} sur {len(sorties)}")
+
+    # La table par decile verifie que la confiance reste monotone pour ce
+    # modele : sans cela, en donner le rang n'aurait aucun sens.
+    table_confiance(dev["darija_norm"].map(normaliser),
+                    [normaliser(s) for s in sorties], confiances, "developpement")
 
 
 if __name__ == "__main__":

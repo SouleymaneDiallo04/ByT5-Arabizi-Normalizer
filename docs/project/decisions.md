@@ -10,6 +10,55 @@ Les plus récentes d'abord.
 
 ---
 
+## 26 novembre 2026 — Le service sert le modèle quantifié
+
+**Décision.** La décision du 20 novembre est appliquée : le service charge le
+mélange 3, puis quantifie en entier 8 bits 116 de ses 129 couches linéaires. La
+tête de sortie et la sortie des feed-forward de l'encodeur restent en pleine
+précision. La sélection vit dans `modele/quantification.py`, que la mesure et le
+service partagent. `QUANTIFIE=0` sert la pleine précision.
+
+**Vérifié à travers l'API**, sur la même machine, conteneur du service, 678
+phrases d'évaluation puis 100 phrases envoyées une à une :
+
+| | fp32 | int8 |
+|---|---:|---:|
+| CER | 0,1033 | 0,1047 |
+| exactitude | 32,2 % | 31,3 % |
+| latence médiane d'une phrase | 2,10 s | 1,22 s |
+| p90 | 3,64 s | 2,03 s |
+| mémoire du conteneur après la mesure | 0,9 Gio | 2,1 Gio |
+
+Le fp32 retrouve exactement ses chiffres, ce qui valide la comparaison. L'int8
+est à 0,1047 contre 0,1042 sur Kaggle : les noyaux entiers diffèrent d'un
+processeur à l'autre. La latence baisse de 42 % en médiane et de 44 % au p90,
+pour six phrases exactes de moins sur 678.
+
+**La calibration est refaite sur le modèle quantifié**, dans l'image du service,
+sur les mêmes 2 000 phrases du dev : le fichier est identique entre les
+révisions `ab17817` et `422d77c` du corpus. La quantification déplace les
+confiances, médiane 0,9893 contre 0,9906, minimum 0,8752 contre 0,9036. Lues
+avec la table du fp32, elles seraient classées 0,06 trop bas en médiane, et 245
+phrases du dev au lieu de 190 tomberaient sous le rang 0,10 : 29 % de relectures
+en trop. La confiance reste un bon indicateur, avec un CER de 0,125 au premier
+décile et de 0,014 au dernier (Spearman +0,388). La calibration porte désormais
+sa variante, et le service refuse de démarrer sur la table d'une autre variante
+comme d'une autre révision. Le registre enregistre la variante avec la révision.
+
+**Limite mesurée : la mémoire.** Les poids pèsent 2,4 fois moins, mais le
+processus n'occupe pas moins de mémoire, au contraire. Quantifier en place
+plutôt que sur une copie aggrave l'occupation juste après le chargement, 1 580
+Mo contre 929. La cause n'est pas établie. Le cadrage demande la faible latence,
+et c'est elle que la quantification apporte.
+
+**Pour un autre modèle.** Le code ne dépend pas du mélange 3, mais deux choses
+en dépendent et seront à refaire si un modèle meilleur le remplace : la
+calibration, environ 45 minutes de processeur (README, section Service), et la
+confirmation du choix des couches par
+`python -m evaluation.quantification --final enc_attention,enc_ffn_entree,dec_attention,dec_ffn_entree,dec_ffn_sortie`.
+
+---
+
 ## 25 novembre 2026 — Des paires tirées de darija en écriture arabe n'apporteraient presque rien de ce qui manque
 
 **Question.** `lid-dataset-base` et `fw-darija` offrent des centaines de
