@@ -211,12 +211,15 @@ d'évaluation :
 | **mélange 3 (nous)** | darija marocain | **0,1033** | **38,9 %** | **32,2 %** |
 | akachkach, ByT5 | darija | 0,2477 | 48,1 % | 24,3 % |
 | baseline, dictionnaire et règles | darija marocain | 0,1699 | 50,4 % | 17,6 % |
+| Haitam03, mT5 | darija marocain | 0,3121 | 65,4 % | 10,0 % |
 | AtlasIA, Transformer, mot par mot | darija marocain | 0,2929 | 69,0 % | 9,9 % |
 | masterofaudio, ByT5, mot par mot | arabe du Golfe | 0,2499 | 73,2 % | 9,3 % |
 | Khenafif, mBART | darija algérien | 0,6055 | 93,0 % | 0,4 % |
 
-Le mT5 de Haitam03, entraîné sur `doda_synthetic`, une de nos sources, reste à
-mesurer.
+Le mT5 de Haitam03, entraîné sur `doda_synthetic`, une de nos sources, a été
+mesuré le 26 novembre avec son préfixe documenté, `transliterate_latin_darija: `.
+Il reste loin derrière, à 0,3867 de CER sur le réglage et 0,3121 sur
+l'évaluation, trois fois le nôtre.
 
 **Trois pièges, et ce qu'ils auraient fait conclure.**
 
