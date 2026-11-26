@@ -59,8 +59,18 @@ class Normaliseur:
         self._verrou = threading.Lock()
 
     def normaliser(self, textes):
-        """Pour chaque texte, dans l'ordre : (sortie, confiance brute, complete)."""
+        """Pour chaque texte, dans l'ordre : (sortie, confiance brute, complete).
+
+        En int8, les phrases passent une a une. La quantification dynamique
+        calcule l'echelle des activations sur tout le lot, remplissage compris :
+        decodee avec d'autres, une phrase change de sortie dans 11 cas sur 64
+        (journal du 26 novembre). La meme entree doit rendre la meme sortie,
+        seule ou en lot. Le fp32 n'a pas ce defaut et garde ses lots.
+        """
         with self._verrou:
+            if self.variante == "int8":
+                lots = [decoder(self.modele, self.tok, [t], self.appareil) for t in textes]
+                return [(s[0], c[0], f[0]) for s, c, f in lots]
             sorties, confiances, completes = decoder(
                 self.modele, self.tok, textes, self.appareil)
         return list(zip(sorties, confiances, completes))

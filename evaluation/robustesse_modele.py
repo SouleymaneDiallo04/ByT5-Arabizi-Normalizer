@@ -40,13 +40,14 @@ from evaluation.apparier import signe
 from evaluation.evaluate import normaliser
 from evaluation.relecture import par_phrase
 from service.normaliseur import MAX_OCTETS, nettoyer
+from service.pretraitement import EMOJI
 
 FICHIER = "robustesse.csv"
+CACHE = "robustesse_cache.csv"
 LOT = 64
 VOYELLES = set("aeiouAEIOU")
 EMOJIS = ["😂", "🙏", "😍", "👍", "❤️"]
 PONCTUATIONS = ["!!!", "???", "...", "?!", "!!"]
-EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️‍]")
 
 
 # --- Les bruits. Chacun prend une phrase et un tirage, rend la phrase bruitee.
@@ -174,22 +175,47 @@ def bruiter(test):
     return pd.DataFrame(lignes)
 
 
-def decoder(entrees):
-    """Sorties du modele servi pour chaque entree distincte, par lots."""
+def decoder(entrees, regles=(), cache=CACHE):
+    """Sorties du modele servi pour chaque entree, a travers les regles.
+
+    Le modele ne voit chaque texte qu'une fois : ses sorties sont gardees dans
+    un cache, par revision et variante. C'est possible parce que le decodage
+    est deterministe, une phrase a la fois en int8 (service/normaliseur.py).
+    """
+    import os
+
     from service.normaliseur import Normaliseur
+    from service.pretraitement import appliquer
 
     n = Normaliseur()
-    print(f"modele : {n.nom}@{n.revision[:7]} en {n.variante}")
-    distinctes = list(dict.fromkeys(entrees))
-    sorties, debut = {}, time.time()
-    for i in range(0, len(distinctes), LOT):
-        lot = distinctes[i:i + LOT]
-        for e, (s, _, _) in zip(lot, n.normaliser([nettoyer(e) for e in lot])):
-            sorties[e] = s
-        fait = i + len(lot)
-        print(f"  {fait}/{len(distinctes)}, {(time.time() - debut) / fait:.2f} s par phrase",
-              flush=True)
-    return [sorties[e] for e in entrees]
+    cle = f"{n.revision}:{n.variante}"
+    print(f"modele : {n.nom}@{n.revision[:7]} en {n.variante} ; regles : "
+          f"{', '.join(regles) or 'aucune'}")
+    connu = {}
+    if os.path.exists(cache):
+        c = pd.read_csv(cache, keep_default_na=False)
+        c = c[c["modele"] == cle]
+        connu = {e: (s, float(conf), f == "True")
+                 for e, s, conf, f in zip(c["texte"], c["sortie"], c["confiance"], c["complete"])}
+    debut, nouveaux = time.time(), []
+
+    def modele(textes):
+        manquants = [t for t in dict.fromkeys(textes) if t not in connu]
+        for i in range(0, len(manquants), LOT):
+            lot = manquants[i:i + LOT]
+            for t, r in zip(lot, n.normaliser(lot)):
+                connu[t] = r
+                nouveaux.append((cle, t) + tuple(r))
+            fait = i + len(lot)
+            print(f"  {fait}/{len(manquants)} textes nouveaux, "
+                  f"{(time.time() - debut) / fait:.2f} s par texte", flush=True)
+            pd.DataFrame(nouveaux, columns=["modele", "texte", "sortie", "confiance", "complete"]
+                         ).to_csv(cache, mode="a", index=False, encoding="utf-8",
+                                  header=not os.path.exists(cache))
+            nouveaux.clear()
+        return [connu[t] for t in textes]
+
+    return [s for s, _, _ in appliquer(modele, [nettoyer(e) for e in entrees], regles)]
 
 
 def mesurer(d, transformation=None):
@@ -260,10 +286,41 @@ def exemples(resultats, partie, n=2):
                   f"       propre : {propre.loc[i, 'sortie']}\n       bruite : {x.loc[i, 'sortie']}")
 
 
+def lire(chemin):
+    r = pd.read_csv(chemin, keep_default_na=False)
+    r["refusee"] = r["refusee"].astype(str) == "True"
+    return r
+
+
+def comparer_passes(base, autre, partie):
+    """Les memes entrees, sans puis avec des regles : ce que les regles changent."""
+    cles = ["id", "bruit"]
+    d = base.merge(autre[cles + ["sortie"]], on=cles, suffixes=("_base", "_regles"))
+    d = d[(d["partie"] == partie) & ~d["refusee"]]
+    print(f"\n== {partie} : sans regles -> avec regles, sur les memes entrees")
+    print(f"{'bruit':<17}{'phrases':>8}{'changees':>9}{'CER sans':>10}{'avec':>8}"
+          f"{'pires/meill.':>13}{'p':>7}{'exactes -/+':>12}")
+    for nom, t in [("propre", None)] + [(nom, t) for nom, _, t in BRUITS]:
+        x = d[d["bruit"] == nom]
+        if x.empty:
+            continue
+        m = mesurer(x.assign(propre=x["sortie_base"], bruitee=x["sortie_regles"]), t)
+        print(f"{nom:<17}{m['phrases']:>8}{m['changees']:>9}{m['cer_propre']:>10.4f}"
+              f"{m['cer_bruite']:>8.4f}{m['pire']:>7}/{m['mieux']:<5}{m['p']:>7.3f}"
+              f"{m['perdues']:>7}/{m['gagnees']:<4}")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--relire", action="store_true", help=f"relit {FICHIER} sans decoder")
+    p.add_argument("--relire", action="store_true", help="relit --fichier sans decoder")
+    p.add_argument("--fichier", default=FICHIER, help="fichier des sorties, ecrit ou relu")
+    p.add_argument("--regles", default="",
+                   help="regles de service/pretraitement.py, separees par des virgules")
+    p.add_argument("--partie", choices=["reglage", "evaluation", "toutes"], default="toutes")
+    p.add_argument("--contre", help="autre fichier de sorties : compare les deux passes")
     a = p.parse_args()
+    regles = tuple(r for r in a.regles.split(",") if r)
+    parties = ["reglage", "evaluation"] if a.partie == "toutes" else [a.partie]
 
     if not a.relire:
         from huggingface_hub import hf_hub_download
@@ -272,20 +329,24 @@ def main():
         test = pd.read_csv(hf_hub_download(DEPOT, f"splits/{TEST}", repo_type="dataset"))
         reglage, _ = prelever(test)
         test["partie"] = ["reglage" if i in reglage.index else "evaluation" for i in test.index]
+        test = test[test["partie"].isin(parties)]
         lignes = bruiter(test)
         print(f"{len(lignes)} entrees, dont {int(lignes['refusee'].sum())} que l'API refuserait")
         a_decoder = lignes[~lignes["refusee"]]
-        lignes.loc[a_decoder.index, "sortie"] = decoder(a_decoder["entree"].tolist())
+        lignes.loc[a_decoder.index, "sortie"] = decoder(a_decoder["entree"].tolist(), regles)
         colonnes = ["id", "partie", "darija_norm", "topic", "annotator_dialect", "mot_isole"]
         lignes = lignes.merge(test[colonnes], on="id")
-        lignes.to_csv(FICHIER, index=False, encoding="utf-8-sig")
-        print(f"ecrit dans {FICHIER}")
+        lignes.to_csv(a.fichier, index=False, encoding="utf-8-sig")
+        print(f"ecrit dans {a.fichier}")
 
-    resultats = pd.read_csv(FICHIER, keep_default_na=False)
-    resultats["refusee"] = resultats["refusee"].astype(str) == "True"
-    for partie in ("reglage", "evaluation"):
+    resultats = lire(a.fichier)
+    if a.contre:
+        for partie in parties:
+            comparer_passes(lire(a.contre), resultats, partie)
+        return
+    for partie in parties:
         tableau(resultats, partie)
-    exemples(resultats, "reglage")
+    exemples(resultats, parties[0])
 
 
 if __name__ == "__main__":
