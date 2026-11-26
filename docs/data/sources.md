@@ -109,8 +109,8 @@ Ses paires s'ajoutent au train par `donnees/ajouter_source.py`, dans un fichier
 
 | | |
 |---|---|
-| Fichier | `moul_sout_translit.csv`, 71 021 lignes |
-| Produit par | `python -m donnees.extraction.extract_moul_sout` |
+| Fichier | `moul_sout_translit.csv`, 53 809 lignes sans latin côté arabe, 71 021 avec |
+| Produit par | `python -m donnees.extraction.extract_moul_sout [--avec-latin]` |
 | Source | [`atlasia/moul_sout_transliteration_71k`](https://huggingface.co/datasets/atlasia/moul_sout_transliteration_71k), accès validé à la main par AtlasIA |
 | Licence | **non indiquée** : la fiche ne dit ni la licence ni la provenance |
 
@@ -118,26 +118,31 @@ C'est de la parole retranscrite : de longues phrases, beaucoup d'arabe standard
 et de français. Ses 71 021 lignes ne portent que 35 545 phrases arabes : presque
 chacune figure deux fois, avec deux arabizi écrits différemment. 24 % des lignes
 gardent du latin côté arabe, souvent des phrases entières, et 5 860 dépassent
-les longueurs du modèle. Les deux sont conservés, comme pour les autres sources :
-le premier se lit après entraînement dans les sorties restées en latin, le
-second est coupé par l'entraînement.
+les longueurs du modèle.
 
-Le premier effet s'est lu : entraîné avec ces lignes, le modèle recopie le
+Les deux avaient d'abord été conservés, faute de preuve qu'ils nuisent. Pour le
+latin, la preuve est venue : entraîné avec ces lignes, le modèle recopie le
 français en latin, et 25 phrases d'évaluation sortent en latin au lieu d'une
-(journal du 26 novembre). Les lignes longues ne montrent rien de nuisible.
+(journal du 26 novembre). L'extracteur les écarte donc par défaut, 17 212 lignes ;
+`--avec-latin` les garde, pour rejouer cette expérience. Les lignes longues ne
+montrent rien de nuisible et restent : l'entraînement les coupe.
 
-`ajouter_source.py` en retient 68 152 paires, avec les 357 paires de DODa-audio
-encore absentes du corpus :
+`ajouter_source.py` retient 52 086 paires sans latin (68 152 avec), plus les 357
+paires de DODa-audio encore absentes du corpus :
 
 ```bash
 python -m donnees.extraction.extract_moul_sout
 python -m donnees.extraction.extract_doda_audio
 python -c "import pandas as pd; pd.concat([pd.read_csv('moul_sout_translit.csv'), pd.read_csv('doda_audio_translit.csv')[['id','darija','transliteration','source']]]).to_csv('candidats.csv', index=False, encoding='utf-8-sig')"
-python -m donnees.ajouter_source candidats.csv train_v2.csv
+python -m donnees.ajouter_source candidats.csv train_v3.csv
 ```
 
+Le jeu voisin [`atlasia/moul_sout_transliteration_36k`](https://huggingface.co/datasets/atlasia/moul_sout_transliteration_36k),
+35 971 lignes au même format, n'est pas encore extrait : son accès est annoncé
+accordé, mais Hugging Face le dit encore en attente.
+
 ```{danger}
-Sans licence connue, ni `moul_sout_translit.csv` ni `train_v2.csv` ne doivent
+Sans licence connue, ni `moul_sout_translit.csv` ni `train_v2.csv` ou `train_v3.csv` ne doivent
 être publiés, ni versés dans le corpus du projet. Seul le script l'est.
 ```
 
