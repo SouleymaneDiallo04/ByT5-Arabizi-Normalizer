@@ -11,7 +11,9 @@ Mesure sur le jeu brut (journal du 25 novembre) :
   - 24 % des lignes gardent du latin cote arabe, souvent des phrases entieres
     en francais ou en anglais. Elles sont conservees, comme celles de
     daa-pairs : PO-02 ne retouche pas les donnees, et l'effet se lit apres
-    entrainement dans les sorties restees en latin ;
+    entrainement dans les sorties restees en latin. Il s'est lu (journal du
+    26 novembre) : le modele recopie alors le francais, 25 phrases
+    d'evaluation en latin au lieu de 1 ;
   - 5 860 lignes depassent les 192 octets d'entree ou les 288 de cible.
     Conservees aussi : l'entrainement les coupe, et la coupe garde 86 % de la
     phrase en mediane, avec 1,1 mot de fin sans equivalent en face ;

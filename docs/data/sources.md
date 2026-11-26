@@ -122,6 +122,10 @@ les longueurs du modèle. Les deux sont conservés, comme pour les autres source
 le premier se lit après entraînement dans les sorties restées en latin, le
 second est coupé par l'entraînement.
 
+Le premier effet s'est lu : entraîné avec ces lignes, le modèle recopie le
+français en latin, et 25 phrases d'évaluation sortent en latin au lieu d'une
+(journal du 26 novembre). Les lignes longues ne montrent rien de nuisible.
+
 `ajouter_source.py` en retient 68 152 paires, avec les 357 paires de DODa-audio
 encore absentes du corpus :
 

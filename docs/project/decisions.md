@@ -10,6 +10,115 @@ Les plus récentes d'abord.
 
 ---
 
+## 26 novembre 2026 — `moul_sout` apprend au modèle à laisser le français en latin
+
+**Question.** Les 68 152 paires de `moul_sout`, de la parole retranscrite,
+améliorent-elles le modèle ? 24 % de ses lignes gardent du latin côté arabe.
+Elles avaient été conservées faute de preuve qu'elles nuisent : l'effet devait
+se lire après entraînement, dans les sorties restées en latin.
+
+**Expérience.** Celle du 21 novembre, à la base près. Depuis les poids du
+mélange 3 : 7 500 pas de plus, optimiseur neuf, taux 1e-4, même recette de
+mélange (58,4 % de base, NileChat pour le reste). La base passe de `train.csv`,
+186 861 lignes, à `train_v2.csv`, 255 370 lignes : `ajouter_source.py` y a
+ajouté 68 509 lignes, `moul_sout` et les 357 paires de DODa-audio, sans toucher
+au dev ni au test. L'entraînement a pris 5 h 39. Le modèle prolongé le 21 novembre sert de
+témoin : même départ, même durée, sans les nouvelles paires.
+
+| | mélange 3 | prolongé | `moul_sout` |
+|---|---:|---:|---:|
+| perte de validation | 0,1155 | 0,1136 | 0,1150 |
+| réglage, 172 phrases : CER | 0,1179 | 0,1119 | 0,1136 |
+| réglage : phrases exactes | 51 | 51 | 56 |
+| évaluation, 678 phrases : CER | 0,1033 | 0,1004 | **0,1153** |
+| évaluation : phrases exactes | 218 | 214 | 223 |
+| évaluation : phrases avec latin | 1 | 1 | **25** |
+
+**Lecture.** Le CER d'évaluation remonte de 12 % par rapport au mélange 3, et
+la cause est unique : le modèle recopie désormais le français tel quel, là où
+TerjamaBench l'écrit en arabe. Il sort *machine learning domaine* pour
+ماشين لرنينغ ضومين, *les astronautes*, *système digestif*, *bonne affaire*. Sur
+les 850 phrases, la catégorie « latin résiduel » passe de 38 à 407 opérations
+d'édition, quand le total ne monte que de 176, de 2 126 à 2 302. Les 25 phrases
+touchées viennent de *mixed_language* (12, dont le CER passe de 0,146 à 0,262),
+*educational* (8), *incorrect_spellings* (4) et *long_sentences* (1).
+Casablanca, dont 16 phrases sortent en latin, passe de 0,133 à 0,211.
+
+**Pourquoi `moul_sout` et pas daa-pairs.** `OiQ/daa-pairs`, déjà dans le corpus
+du mélange 3, garde lui aussi du latin dans 29 % de ses cibles, et le mélange 3
+ne recopiait pas. L'écart est de degré et de forme. `moul_sout` recopie tels
+quels 6,2 % des mots de son arabizi, daa-pairs 3,0 %. Parmi les mots latins les
+plus fréquents de ses cibles figurent *donc*, *est*, *que*, *mais* : ce sont des
+propositions entières laissées en français. Ceux de daa-pairs, après les
+articles, sont des noms isolés : *ambiance*, *normal*, *projet*, *vidéo*. Avec
+`moul_sout`, la base passe de 79 920 à 149 516 mots latins côté cible. C'est le
+seul ajout qui en porte : les 357 paires de DODa-audio n'en ont aucune, et le
+témoin, entraîné sans elles, en est resté à une phrase.
+
+**Hors latin, le modèle progresse.** Sur les phrases où aucune des deux sorties
+n'a de latin :
+
+| | CER, mélange 3 → `moul_sout` | phrases meilleures / pires | p | exactes gagnées / perdues | p |
+|---|---:|---:|---:|---:|---:|
+| réglage, 164 phrases | 0,1137 → 0,1013 | 28 / 16 | 0,10 | 9 / 4 | 0,27 |
+| évaluation, 653 phrases | 0,0984 → 0,0944 | 93 / 65 | 0,03 | 21 / 15 | 0,41 |
+
+Le gain le plus net porte sur un défaut relevé le 21 novembre : sur ces 817
+phrases, les espaces en trop passent de 173 à 121, les manquantes de 84 à 85.
+Les ا en trop passent de 298 à 268.
+
+Deux réserves. Cette sélection dépend des sorties : une phrase recopiée en latin
+en sort, et c'est un diagnostic, pas une mesure. Et la comparaison se fait
+contre le mélange 3 et non contre le témoin, dont les prédictions phrase par
+phrase n'ont pas été gardées : la part de la durée, qui à elle seule avait donné
+63 phrases meilleures contre 54 (p = 0,46), n'est pas séparée de celle des
+données.
+
+Les 5 860 lignes trop longues, conservées elles aussi, ne montrent rien de
+nuisible : le thème *long_sentences* passe de 0,094 à 0,087, avec 20 phrases
+meilleures contre 9.
+
+**Décision.** Ce modèle n'est pas retenu : la règle du 21 novembre exigeait un
+latin stable, et il passe de 1 à 25 phrases. Le service reste sur le mélange 3.
+
+**Ce que ça entraîne.** Le latin côté cible de `moul_sout` n'est plus un soupçon,
+c'est une cause mesurée. Il tient dans 16 066 lignes, 23,6 % des paires
+retenues. Une reprise identique sans elles dirait ce que vaut le reste de la
+source.
+
+Les mesures se relancent avec :
+
+```bash
+python -m evaluation.apparier byt5_moulsout.csv byt5_melange3.csv
+python -m evaluation.apparier byt5_moulsout.csv byt5_melange3.csv --sans-latin
+python -m evaluation.erreurs byt5_moulsout.csv byt5_melange3.csv
+```
+
+---
+
+## 26 novembre 2026 — ByT5-base demanderait 33 heures de GPU
+
+**Question.** Le modèle *base*, 580 millions de paramètres contre 300 pour
+*small*, tient-il dans le budget de Kaggle ?
+
+**Mesure.** 100 pas sur deux T4, au lot effectif de 64 des entraînements
+retenus. Au premier essai, *base* a manqué de mémoire ; il est mesuré à 4
+phrases par carte et 8 pas d'accumulation.
+
+| | secondes par pas | 15 000 pas, comme le mélange 3 |
+|---|---:|---:|
+| ByT5-small | 2,76 | 11,5 h |
+| ByT5-base | 7,97 | 33 h |
+
+La reprise `moul_sout` confirme le chiffre de *small* : 20 340 s pour 7 500 pas,
+soit 2,71 s par pas.
+
+**Décision.** Pas d'entraînement de *base* pour l'instant : 33 heures dépassent
+le quota hebdomadaire de GPU, et l'écart que la taille apporterait n'est pas
+mesuré. Le budget va d'abord aux données.
+
+---
+
 ## 26 novembre 2026 — La confiance dit surtout ce qu'on peut relire en dernier
 
 **Question.** L'interface de validation présente les prédictions les moins sûres
