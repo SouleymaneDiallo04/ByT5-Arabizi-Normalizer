@@ -13,7 +13,7 @@ Le fichier attendu contient au minimum les colonnes `prediction`, `darija` et
 `darija_norm`. Les colonnes `mot_isole`, `annotator_dialect` et `topic`, quand
 elles sont présentes, déclenchent les ventilations correspondantes.
 
-## Les deux métriques
+## Les trois métriques
 
 **Le CER** est le taux d'erreur de caractères : distance de Levenshtein entre la
 prédiction et la référence, divisée par la longueur de la référence. Il est
@@ -23,6 +23,12 @@ dont le jeu de test contient beaucoup.
 
 **L'exactitude phrase** est la part des prédictions identiques à la référence,
 caractère pour caractère.
+
+**Le WER** est le taux d'erreur de mots : la même distance, comptée en mots, au
+niveau du corpus. Le cadrage du projet impose les deux premières. Le WER s'y
+ajoute parce que le mot est l'unité du vocabulaire que ce normaliseur doit
+stabiliser. **Quand l'exactitude et le CER se contredisent, c'est lui qui
+départage deux modèles.**
 
 ```{important}
 Avec 850 items, l'intervalle de confiance à 95 % sur l'exactitude phrase est

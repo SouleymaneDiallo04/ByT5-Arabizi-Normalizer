@@ -10,6 +10,114 @@ Les plus récentes d'abord.
 
 ---
 
+## 25 novembre 2026 — Les hamzas ne sont pas neutralisées au calcul des métriques
+
+**Constat.** PO-01 annonce qu'au calcul des métriques, et là seulement, les
+hamzas sont neutralisées dans la référence comme dans la prédiction. La commande
+de mesure ne l'a jamais fait. `normaliser` dans `evaluation/evaluate.py` retire
+la vocalisation, convertit `?` et `;` en signes arabes et réduit les espaces,
+rien d'autre. Le remplacement de أ, إ et آ par ا n'existe que dans `cle_arabe`,
+qui sert à détecter doublons et fuites entre les jeux, jamais à noter. Tous les
+chiffres publiés depuis le premier modèle sont donc **stricts** : une hamza qui
+diffère compte comme une erreur.
+
+**Mesure.** Mêmes prédictions, mêmes 678 phrases d'évaluation (`prelever`,
+`donnees/decouper_test.py`), même `normaliser`, auquel on ajoute des deux côtés
+le remplacement de أ, إ et آ par ا :
+
+| | CER | WER | Exactitude |
+|---|---:|---:|---:|
+| mélange 3, strict | 0,1033 | 38,9 % | 32,2 % |
+| mélange 3, hamzas neutralisées | 0,0989 | 37,5 % | 33,9 % |
+| baseline, stricte | 0,1699 | 50,4 % | 17,6 % |
+| baseline, hamzas neutralisées | 0,1666 | 49,6 % | 18,7 % |
+
+93 références sur 678 portent une hamza. **12 phrases** du mélange 3 ne sont
+fausses que par elle, et le plus souvent le modèle y écrit la forme standard
+quand la référence ne le fait pas : ألف ريال pour الف ريال, إنستغرام pour
+انستغرام.
+
+**Décision.** La mesure stricte reste la mesure principale, pour trois raisons :
+- tous les chiffres déjà présentés et publiés le sont sous cette forme ;
+- c'est la plus sévère pour le modèle ;
+- l'écart avec la baseline change à peine : 14,6 points d'exactitude en
+  mesure stricte, 15,2 en neutralisée.
+
+La version neutralisée est donnée en mesure secondaire, comme la table de
+DODa-audio. Le cahier des charges n'étant plus modifié, c'est cette entrée qui
+fait foi sur ce point : ses chiffres de PO-01 (+0,0034 de CER, +1,3 point
+d'exactitude), mesurés sur le premier modèle, décrivent cette mesure
+secondaire et non la principale.
+
+---
+
+## 25 novembre 2026 — Devant tous les modèles publics mesurés
+
+**Mesure.** `evaluation/comparer_modeles.py` fait passer les modèles publics de
+translittération sur les mêmes phrases de TerjamaBench, par la même mesure.
+Mode d'appel choisi sur les 172 phrases de réglage, chiffres sur les 678
+d'évaluation :
+
+| système | domaine visé | CER | WER | exactitude |
+|---|---|---:|---:|---:|
+| **mélange 3 (nous)** | darija marocain | **0,1033** | **38,9 %** | **32,2 %** |
+| akachkach, ByT5 | darija | 0,2477 | 48,1 % | 24,3 % |
+| baseline, dictionnaire et règles | darija marocain | 0,1699 | 50,4 % | 17,6 % |
+| AtlasIA, Transformer, mot par mot | darija marocain | 0,2929 | 69,0 % | 9,9 % |
+| masterofaudio, ByT5, mot par mot | arabe du Golfe | 0,2499 | 73,2 % | 9,3 % |
+| Khenafif, mBART | darija algérien | 0,6055 | 93,0 % | 0,4 % |
+
+Le mT5 de Haitam03, entraîné sur `doda_synthetic`, une de nos sources, reste à
+mesurer.
+
+**Trois pièges, et ce qu'ils auraient fait conclure.**
+
+- **Le modèle d'AtlasIA est entraîné sur des mots.** Appelé sur des phrases
+  entières, il paraissait à 0,78 de CER ; mot par mot et en minuscules, il est
+  à 0,30 sur le réglage. Son tokenizer ne distingue pas une coupure dans un mot
+  d'une limite de mots, et il perd des mots, `daba` par exemple.
+- **Les poids partagés.** Un T5 sauvegardé par transformers 4 avec
+  `tie_word_embeddings=False` n'écrit ses plongements qu'une fois, et
+  transformers 5 réinitialise ceux qu'il ne trouve pas : le modèle aurait
+  produit du charabia. Le script relie ces matrices, et lit les clés dans le
+  fichier lui-même plutôt que dans le rapport de chargement.
+- **Le préfixe d'entrée.** Deux modèles n'en documentent aucun : le meilleur de
+  six essais est gardé, et leur score peut être un peu sous-estimé.
+
+**Ce que ça entraîne.** Nous ne sommes pas passés à côté d'un modèle public
+déjà meilleur. Le score d'AtlasIA ne tranche pas la question d'un petit
+Transformer dédié : il est plombé par son tokenizer et son entraînement sur des
+mots isolés, sans contexte.
+
+---
+
+## 22 novembre 2026 — Le WER rejoint les deux métriques imposées
+
+**Constat.** Le cadrage impose d'optimiser l'exactitude de phrase et le CER. Les
+deux se sont contredits sur le modèle prolongé : meilleur CER, moins de phrases
+exactes. Et le problème que décrit le cadrage est un vocabulaire fragmenté, or
+aucune des deux ne mesure au niveau du mot : l'exactitude perd toute une phrase
+pour une lettre, le CER dilue un mot entièrement faux.
+
+**Décision.** Les trois métriques sont rapportées, et **le WER départage deux
+modèles quand l'exactitude et le CER se contredisent.**
+
+| 678 phrases d'évaluation | baseline | mélange 3 |
+|---|---:|---:|
+| exactitude de phrase | 17,6 % | 32,2 % |
+| CER | 0,1699 | 0,1033 |
+| WER | 0,5042 | 0,3891 |
+
+**Écartées après mesure.** La part de mots ramenés à une seule forme est la plus
+proche de l'objectif, mais elle ne repose que sur 80 mots du jeu de test, et un
+modèle qui ramènerait toutes les variantes vers une forme fausse y serait
+parfait. L'exactitude à la convention près redéfinit ce qui est juste, et reste
+un outil de diagnostic. Le taux de lettres dans le bon alphabet est déjà à
+99,9 %. La latence n'est pas une métrique à optimiser : c'est une contrainte du
+cadrage, vérifiée sur le modèle final.
+
+---
+
 ## 21 novembre 2026 — DODa-audio n'apporte que 360 paires, et non 3 668
 
 **Correction.** Le journal du 12 novembre annonçait 3 668 paires nouvelles, et

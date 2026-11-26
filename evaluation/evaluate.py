@@ -34,7 +34,11 @@ def normaliser(texte):
 
 
 def distance(a, b):
-    """Distance de Levenshtein entre deux chaines, deux lignes en memoire."""
+    """Distance de Levenshtein entre deux sequences, deux lignes en memoire.
+
+    Sur des chaines elle compte les caracteres (CER), sur des listes de mots les
+    mots (WER).
+    """
     if a == b:
         return 0
     precedente = list(range(len(b) + 1))
@@ -49,20 +53,28 @@ def distance(a, b):
 
 
 def mesurer(references, predictions):
-    """Calcule le CER et l'exactitude phrase sur deux series alignees.
+    """Calcule le CER, le WER et l'exactitude phrase sur deux series alignees.
 
-    Le CER est calcule au niveau du corpus, somme des distances sur somme des
-    longueurs de reference. La moyenne des CER par phrase donnerait un poids
+    Le CER et le WER sont calcules au niveau du corpus, somme des distances sur
+    somme des longueurs de reference. La moyenne par phrase donnerait un poids
     excessif aux phrases courtes, dont le jeu de test contient beaucoup.
+
+    Le cadrage du projet impose l'exactitude et le CER. Le WER les departage
+    quand ils se contredisent : le mot est l'unite du vocabulaire que ce
+    normaliseur doit stabiliser pour les modeles en aval.
     """
-    erreurs = longueurs = exactes = 0
+    erreurs = longueurs = exactes = erreurs_mots = mots = 0
     for reference, prediction in zip(references, predictions):
         reference, prediction = str(reference), str(prediction)
         erreurs += distance(prediction, reference)
         longueurs += len(reference)
         exactes += (prediction == reference)
+        mots_reference = reference.split()
+        erreurs_mots += distance(prediction.split(), mots_reference)
+        mots += len(mots_reference)
     nombre = max(len(references), 1)
     return {"cer": erreurs / max(longueurs, 1),
+            "wer": erreurs_mots / max(mots, 1),
             "exactitude": exactes / nombre,
             "phrases": nombre}
 
@@ -70,11 +82,11 @@ def mesurer(references, predictions):
 def ventiler(donnees, colonne, libelle):
     """Affiche les metriques groupees par une colonne, du groupe le plus fourni au moins."""
     print(f"\n{libelle}")
-    print(f"{'':22} {'phrases':>8} {'CER':>8} {'exactitude':>12}")
+    print(f"{'':22} {'phrases':>8} {'CER':>8} {'WER':>8} {'exactitude':>12}")
     for valeur, part in sorted(donnees.groupby(colonne), key=lambda kv: -len(kv[1])):
         m = mesurer(part["darija_norm"], part["pred_norm"])
         print(f"{str(valeur)[:22]:22} {m['phrases']:>8} {m['cer']:>8.4f} "
-              f"{100 * m['exactitude']:>11.1f}%")
+              f"{m['wer']:>8.4f} {100 * m['exactitude']:>11.1f}%")
 
 
 if __name__ == "__main__":
@@ -94,23 +106,24 @@ if __name__ == "__main__":
     norme = mesurer(d["darija_norm"], d["pred_norm"])
 
     print(f"{PREDICTIONS} : {len(d)} phrases\n")
-    print(f"{'reference':36} {'CER':>8} {'exactitude':>12}")
-    print("-" * 58)
-    print(f"{'texte brut':36} {brut['cer']:>8.4f} {100 * brut['exactitude']:>11.1f}%")
+    print(f"{'reference':36} {'CER':>8} {'WER':>8} {'exactitude':>12}")
+    print("-" * 67)
+    print(f"{'texte brut':36} {brut['cer']:>8.4f} {brut['wer']:>8.4f} "
+          f"{100 * brut['exactitude']:>11.1f}%")
     print(f"{'convention appliquee des deux cotes':36} {norme['cer']:>8.4f} "
-          f"{100 * norme['exactitude']:>11.1f}%")
-    print("-" * 58)
+          f"{norme['wer']:>8.4f} {100 * norme['exactitude']:>11.1f}%")
+    print("-" * 67)
     print(f"ecart de CER imputable a la convention : {brut['cer'] - norme['cer']:+.4f}")
 
     if "mot_isole" in d.columns:
         print("\nMots isoles et phrases, mesures separement")
-        print(f"{'':22} {'phrases':>8} {'CER':>8} {'exactitude':>12}")
+        print(f"{'':22} {'phrases':>8} {'CER':>8} {'WER':>8} {'exactitude':>12}")
         for libelle, part in [("mots isoles", d[d["mot_isole"]]),
                               ("phrases", d[~d["mot_isole"]])]:
             if len(part):
                 m = mesurer(part["darija_norm"], part["pred_norm"])
                 print(f"{libelle:22} {m['phrases']:>8} {m['cer']:>8.4f} "
-                      f"{100 * m['exactitude']:>11.1f}%")
+                      f"{m['wer']:>8.4f} {100 * m['exactitude']:>11.1f}%")
 
     if "annotator_dialect" in d.columns:
         ventiler(d, "annotator_dialect", "Par variete regionale de l'annotateur")
