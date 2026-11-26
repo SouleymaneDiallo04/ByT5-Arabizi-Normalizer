@@ -217,9 +217,10 @@ Le modèle est servi par une API REST documentée au format OpenAPI (EF-04).
 Il est **quantifié en entier 8 bits**, 116 couches linéaires sur 129 : la tête
 de sortie et la sortie des feed-forward de l'encodeur restent en pleine
 précision, parce qu'elles portent toute la dégradation. À travers l'API, il
-répond 42 % plus vite en médiane, pour un CER de 0,1047 contre 0,1033 ; ses
-poids pèsent 2,4 fois moins, mais le processus n'occupe pas moins de mémoire
-(journal du 26 novembre). `QUANTIFIE=0` sert la pleine précision.
+répond 42 % plus vite en médiane, pour un CER de 0,1047 contre 0,1033, et
+occupe 19 % de mémoire en moins en régime établi ; son pic au démarrage
+atteint toutefois 3 Go (journal du 26 novembre). `QUANTIFIE=0` sert la pleine
+précision.
 
 | Route | Rôle |
 |---|---|
