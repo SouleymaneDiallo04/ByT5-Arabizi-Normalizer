@@ -74,7 +74,6 @@ phrases d'évaluation puis 100 phrases envoyées une à une :
 | exactitude | 32,2 % | 31,3 % |
 | latence médiane d'une phrase | 2,10 s | 1,22 s |
 | p90 | 3,64 s | 2,03 s |
-| mémoire du conteneur après la mesure | 0,9 Gio | 2,1 Gio |
 
 Le fp32 retrouve exactement ses chiffres, ce qui valide la comparaison. L'int8
 est à 0,1047 contre 0,1042 sur Kaggle : les noyaux entiers diffèrent d'un
@@ -92,11 +91,29 @@ décile et de 0,014 au dernier (Spearman +0,388). La calibration porte désormai
 sa variante, et le service refuse de démarrer sur la table d'une autre variante
 comme d'une autre révision. Le registre enregistre la variante avec la révision.
 
-**Limite mesurée : la mémoire.** Les poids pèsent 2,4 fois moins, mais le
-processus n'occupe pas moins de mémoire, au contraire. Quantifier en place
-plutôt que sur une copie aggrave l'occupation juste après le chargement, 1 580
-Mo contre 929. La cause n'est pas établie. Le cadrage demande la faible latence,
-et c'est elle que la quantification apporte.
+**La mémoire.** Mémoire résidente du processus du service, lue dans
+`/proc/1/status`, après la même charge : 100 requêtes d'une phrase, puis 10 lots
+de 64.
+
+| | au démarrage | après la charge | pic |
+|---|---:|---:|---:|
+| fp32 | 368 Mo | 1 685 Mo | 1 825 Mo |
+| int8, première version | 1 852 Mo | 2 045 Mo, après 1 000 requêtes et 10 lots | 2 983 Mo |
+| int8, avec `gc.collect()` | 1 156 Mo | 1 370 Mo | 3 009 Mo |
+
+La première version gardait le modèle en pleine précision en mémoire. La
+quantification travaille sur une copie, et l'original, dont les modules se
+référencent entre eux, n'était pas libéré tant que le ramasse-miettes ne passait
+pas. Un `gc.collect()` après la quantification retire 700 Mo au démarrage, et le
+service quantifié occupe alors 19 % de moins que le fp32 en régime établi. Il ne
+fuit pas : sur 1 000 requêtes, la mémoire n'a pris que 44 Mo, par paliers. Le
+défaut qui reste est le pic du démarrage, 3,0 Go, quand original et copie
+coexistent : il tient dans les 3,75 Gio de Docker Desktop, sans marge.
+Quantifier en place évite la copie mais garde le fichier des poids projeté en
+mémoire, 1 580 Mo juste après le chargement.
+
+Le premier relevé, fait avec `docker stats`, donnait 0,9 Gio au fp32 et 2,1 au
+int8 : il compte la mémoire du conteneur autrement, et inversait le constat.
 
 **Pour un autre modèle.** Le code ne dépend pas du mélange 3, mais deux choses
 en dépendent et seront à refaire si un modèle meilleur le remplace : la

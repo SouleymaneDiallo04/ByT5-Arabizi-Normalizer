@@ -43,8 +43,15 @@ class Normaliseur:
                        .to(self.appareil).eval())
         self.variante = "fp32"
         if quantifie:
+            import gc
+
             from modele.quantification import quantifier_modele
             self.modele, _ = quantifier_modele(self.modele)
+            # La quantification travaille sur une copie. L'original en pleine
+            # precision ne disparait qu'au passage du ramasse-miettes, ses
+            # modules se referencant entre eux : sans cet appel, il restait
+            # en memoire tant que le service tournait.
+            gc.collect()
             self.variante = "int8"
         # Une requete a la fois. Sur processeur, une seule phrase occupe deja
         # toute la machine : en decoder deux ensemble les ralentirait toutes
