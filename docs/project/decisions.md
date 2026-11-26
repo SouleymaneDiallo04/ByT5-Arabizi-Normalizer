@@ -10,6 +10,53 @@ Les plus récentes d'abord.
 
 ---
 
+## 26 novembre 2026 — La confiance dit surtout ce qu'on peut relire en dernier
+
+**Question.** L'interface de validation présente les prédictions les moins sûres
+d'abord. Ce classement trouve-t-il les erreurs ? La calibration l'avait vérifié
+sur le dev, tiré des mêmes sources que l'entraînement. Ici, on le vérifie sur
+les 678 phrases d'évaluation de TerjamaBench, avec la confiance du service tel
+qu'il est servi, en int8 : `python -m evaluation.relecture --service URL`. La
+relecture est simulée, de la phrase la moins sûre à la plus sûre. Rien n'est
+réglé.
+
+**Mesure.** 466 phrases sur 678 sont fausses, soit 68,7 %.
+
+| | AUROC |
+|---|---:|
+| les 678 phrases | 0,691 |
+| sans les 130 mots isolés | 0,776 |
+| les mots isolés seuls | 0,658 |
+
+L'AUROC est la probabilité qu'une phrase fausse soit moins sûre qu'une phrase
+juste : 0,5 pour le hasard, 1 pour une séparation parfaite.
+
+| sans les mots isolés, 548 phrases | fausses trouvées | erreurs trouvées | fausses parmi les relues |
+|---|---:|---:|---:|
+| relire les 10 % les moins sûres | 11,9 % | 13,1 % | 92,7 % |
+| relire les 20 % les moins sûres | 24,0 % | 25,7 % | 93,6 % |
+| relire la moitié la moins sûre | 58,4 % | 64,8 % | 91,6 % |
+| au hasard | la part relue | la part relue | 78,5 % |
+
+**Lecture.** Quand près de quatre phrases sur cinq sont fausses, presque toute
+relecture en trouve : le haut de la liste fait mieux que le hasard, mais de peu.
+La confiance vaut surtout par le bas. Le décile le plus sûr est exact à 77,9 %,
+avec un CER de 0,029. Ne pas relire les 10 % les plus sûres ne fait manquer que
+3,5 % des phrases fausses et 1,6 % des erreurs de caractère, et le double pour
+20 %.
+
+Les mots isolés expliquent une anomalie : ils forment 40 % du décile le moins
+sûr, plus souvent exact que les trois suivants. Un mot seul reçoit une confiance
+basse et se trouve juste ou faux d'un bloc. TerjamaBench en contient 19 % ; un
+service utilisé pour de vraies phrases en recevra sans doute moins.
+
+**Ce que ça entraîne.** L'ordre de l'interface est gardé. La directive veut que
+toute prédiction soit validée, et la confiance ne dispense de rien. Elle dit
+seulement ce qui peut attendre quand le temps manque : les phrases les plus
+sûres.
+
+---
+
 ## 26 novembre 2026 — Le service sert le modèle quantifié
 
 **Décision.** La décision du 20 novembre est appliquée : le service charge le
