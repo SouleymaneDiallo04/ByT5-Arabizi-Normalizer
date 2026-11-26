@@ -68,9 +68,7 @@ class Normaliseur:
         seule ou en lot. Le fp32 n'a pas ce defaut et garde ses lots.
         """
         with self._verrou:
-            if self.variante == "int8":
-                lots = [decoder(self.modele, self.tok, [t], self.appareil) for t in textes]
-                return [(s[0], c[0], f[0]) for s, c, f in lots]
             sorties, confiances, completes = decoder(
-                self.modele, self.tok, textes, self.appareil)
+                self.modele, self.tok, textes, self.appareil,
+                **({"taille_lot": 1} if self.variante == "int8" else {}))
         return list(zip(sorties, confiances, completes))

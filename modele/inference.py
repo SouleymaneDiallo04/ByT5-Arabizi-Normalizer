@@ -34,8 +34,13 @@ def confiance_moyenne(transitions, jetons, pad_id):
     return moyenne.exp()
 
 
-def decoder(modele, tok, phrases, appareil, faisceaux=1, confiance=True):
-    """Decode une liste de phrases, par lots de TAILLE_LOT et dans l'ordre.
+def decoder(modele, tok, phrases, appareil, faisceaux=1, confiance=True,
+            taille_lot=TAILLE_LOT):
+    """Decode une liste de phrases, par lots de taille_lot et dans l'ordre.
+
+    Un modele quantifie en int8 se decode avec taille_lot=1 : la quantification
+    dynamique calcule l'echelle des activations sur tout le lot, et la sortie
+    d'une phrase changerait avec ses voisines (journal du 26 novembre).
 
     Renvoie trois listes alignees sur `phrases` : les textes, les confiances
     (vide si `confiance` est faux) et, pour chaque sortie, si le modele l'a
@@ -43,8 +48,8 @@ def decoder(modele, tok, phrases, appareil, faisceaux=1, confiance=True):
     tronquee : l'appelant doit pouvoir le savoir.
     """
     textes, confiances, completes = [], [], []
-    for depart in range(0, len(phrases), TAILLE_LOT):
-        lot = [str(p) for p in phrases[depart:depart + TAILLE_LOT]]
+    for depart in range(0, len(phrases), taille_lot):
+        lot = [str(p) for p in phrases[depart:depart + taille_lot]]
         entrees = tok(lot, return_tensors="pt", padding=True, truncation=True,
                       max_length=MAX_SOURCE).to(appareil)
         with torch.no_grad():
@@ -65,12 +70,13 @@ def decoder(modele, tok, phrases, appareil, faisceaux=1, confiance=True):
     return textes, confiances, completes
 
 
-def predire(modele, tok, phrases, appareil, faisceaux=1, confiance=False):
+def predire(modele, tok, phrases, appareil, faisceaux=1, confiance=False,
+            taille_lot=TAILLE_LOT):
     """Decode une liste de phrases, et renvoie eventuellement la confiance.
 
     Renvoie `(textes, confiances)`, `confiances` valant None si elle n'est pas
     demandee. Forme utilisee par les scripts de mesure.
     """
     textes, confiances, _ = decoder(modele, tok, phrases, appareil,
-                                    faisceaux, confiance)
+                                    faisceaux, confiance, taille_lot)
     return textes, (confiances if confiance else None)

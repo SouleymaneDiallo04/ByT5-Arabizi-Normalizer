@@ -16,9 +16,16 @@ from service.normaliseur import Normaliseur
 def lots(monkeypatch):
     recus = []
 
-    def faux_decoder(modele, tok, phrases, appareil):
-        recus.append(len(phrases))
-        return ([f"<{p}>" for p in phrases], [0.5] * len(phrases), [True] * len(phrases))
+    def faux_decoder(modele, tok, phrases, appareil, taille_lot=16):
+        # Le vrai decoder coupe en lots de taille_lot : le faux note leur taille.
+        sorties = ([], [], [])
+        for i in range(0, len(phrases), taille_lot):
+            lot = phrases[i:i + taille_lot]
+            recus.append(len(lot))
+            sorties[0].extend(f"<{p}>" for p in lot)
+            sorties[1].extend([0.5] * len(lot))
+            sorties[2].extend([True] * len(lot))
+        return sorties
 
     monkeypatch.setattr(module, "decoder", faux_decoder)
     return recus

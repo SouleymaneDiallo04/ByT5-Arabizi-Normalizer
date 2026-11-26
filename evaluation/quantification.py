@@ -58,7 +58,10 @@ def evaluer(nom, groupes, par_groupe, tok, donnees):
     if noms:
         modele = quantifier(modele, noms)
     debut = time.perf_counter()
-    pred, _ = predire(modele, tok, donnees["transliteration"].astype(str).tolist(), "cpu")
+    # En int8, une phrase a la fois, comme le service : decodee en lot, sa
+    # sortie dependrait de ses voisines (modele/inference.py).
+    pred, _ = predire(modele, tok, donnees["transliteration"].astype(str).tolist(), "cpu",
+                      **({"taille_lot": 1} if noms else {}))
     duree = time.perf_counter() - debut
     m = mesurer(donnees["darija_norm"].map(normaliser), [normaliser(p) for p in pred])
     phrases = donnees["transliteration"].astype(str).tolist()[:PHRASES_LATENCE]
