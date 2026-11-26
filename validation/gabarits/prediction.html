@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block titre %}Prédiction {{ p.id }}{% endblock %}
+{% block contenu %}
+<h1>Prédiction {{ p.id }}</h1>
+<p class="doux">Confiance {{ "%.2f"|format(p.confiance) }} · statut : {{ p.statut }}
+{%- if not p.complete %} · <strong>sortie tronquée</strong>{% endif %}</p>
+{% if p.derniere %}
+<p class="doux">Dernière décision : {{ p.derniere.decision }} par {{ p.derniere.validateur }}
+{%- if p.derniere.motif %} ({{ motifs[p.derniere.motif] }}){% endif %}.</p>
+{% endif %}
+{% if erreur %}<p class="erreur" role="alert">{{ erreur }}</p>{% endif %}
+<p><strong>Arabizi</strong> : {{ p.entree }}</p>
+<p><strong>Sortie du modèle</strong> :
+  <span id="sortie" class="ar" dir="rtl" lang="ar">{{ p.sortie }}</span></p>
+<form method="post">
+  <input type="hidden" name="depuis" value="{{ depuis }}">
+  <p><label>Votre nom <input name="validateur" value="{{ validateur }}" required></label></p>
+  <p><label for="texte">Texte retenu</label></p>
+  <textarea id="texte" name="texte" class="ar" dir="rtl" lang="ar">{{ texte }}</textarea>
+  <p class="lettres">
+    {% for lettre in ["ڭ", "ڤ", "؟", "،"] %}<button type="button" class="lettre" data-lettre="{{ lettre }}">{{ lettre }}</button>{% endfor %}
+    <button type="button" id="retablir">Rétablir la sortie du modèle</button>
+  </p>
+  <p><label>Motif, pour écarter
+    <select name="motif">
+      <option value="">—</option>
+      {% for code, libelle in motifs.items() %}<option value="{{ code }}">{{ libelle }}</option>{% endfor %}
+    </select></label></p>
+  <p><label>Remarque <input name="remarque"></label></p>
+  <p class="actions">
+    <button name="decision" value="confirmee">Confirmer</button>
+    <button name="decision" value="corrigee">Corriger</button>
+    <button name="decision" value="ecartee">Écarter</button>
+  </p>
+</form>
+<script>
+  const zone = document.getElementById("texte");
+  document.querySelectorAll(".lettre").forEach(b => b.addEventListener("click", () => {
+    zone.setRangeText(b.dataset.lettre, zone.selectionStart, zone.selectionEnd, "end");
+    zone.focus();
+  }));
+  document.getElementById("retablir").addEventListener("click", () => {
+    zone.value = document.getElementById("sortie").textContent;
+    zone.focus();
+  });
+</script>
+{% endblock %}

@@ -10,3 +10,7 @@ huggingface_hub==2.3.0
 fastapi==0.136.1
 uvicorn==0.44.0
 pydantic==2.13.0
+# Registre de validation humaine : le service y enregistre chaque prediction
+# quand DATABASE_URL est definie.
+sqlalchemy==2.0.51
+psycopg[binary]==3.3.9

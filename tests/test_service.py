@@ -10,8 +10,11 @@ import math
 import pytest
 import torch
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
+import service.api
 from modele.inference import confiance_moyenne
+from registre.depot import Registre
 from service.api import creer_app
 from service.calibration import Calibration
 from service.normaliseur import MAX_OCTETS
@@ -150,3 +153,81 @@ def test_confiance_moyenne_ignore_le_remplissage():
     c = confiance_moyenne(probas.log(), jetons, pad_id=0)
     assert math.isclose(c[0].item(), 0.5, rel_tol=1e-6)
     assert math.isclose(c[1].item(), 0.8, rel_tol=1e-6)
+
+
+# --- Registre de validation humaine -------------------------------------------
+
+def url_sqlite(tmp_path):
+    return f"sqlite:///{(tmp_path / 'registre.db').as_posix()}"
+
+
+@pytest.fixture
+def registre(tmp_path):
+    return Registre(url_sqlite(tmp_path))
+
+
+@pytest.fixture
+def client_registre(faux, registre):
+    with TestClient(creer_app(faux, CALIBRATION, registre)) as c:
+        yield c
+
+
+def test_une_prediction_enregistree(client_registre, registre):
+    d = client_registre.post(
+        "/normaliser", json={"texte": "  chrit 3   tomobilat "}).json()
+    p = registre.prediction(d["id"])
+    assert p["entree"] == "  chrit 3   tomobilat "
+    assert p["entree_propre"] == "chrit 3 tomobilat"
+    assert p["sortie"] == d["sortie"] == "شريت 3 طوموبيلات"
+    assert p["confiance"] == d["confiance"]
+    assert p["confiance_brute"] == d["confiance_brute"]
+    assert p["complete"] is True and p["revision"] == "rev-test"
+    assert p["statut"] == "a_valider"
+
+
+def test_un_lot_enregistre_n_predictions(client_registre, registre):
+    textes = ["kanbghik bzaf", "chrit 3 tomobilat", "wach"]
+    resultats = client_registre.post(
+        "/normaliser/lot", json={"textes": textes}).json()["resultats"]
+    ids = [x["id"] for x in resultats]
+    assert len(set(ids)) == 3
+    assert [registre.prediction(i)["entree"] for i in ids] == textes
+    assert [registre.prediction(i)["sortie"] for i in ids] == [
+        x["sortie"] for x in resultats]
+    assert registre.a_valider()[1] == 3
+
+
+class RegistreEnPanne(Registre):
+    def enregistrer(self, lignes):
+        raise OperationalError("INSERT INTO predictions", {},
+                               ConnectionRefusedError("base arrêtée"))
+
+
+def test_base_indisponible_503(faux, tmp_path):
+    with TestClient(creer_app(faux, CALIBRATION,
+                              RegistreEnPanne(url_sqlite(tmp_path)))) as c:
+        r = c.post("/normaliser", json={"texte": "kanbghik bzaf"})
+        assert r.status_code == 503 and "registre" in r.json()["detail"]
+        lot = c.post("/normaliser/lot", json={"textes": ["wach"]})
+        assert lot.status_code == 503
+
+
+def test_sans_database_url_rien_n_est_enregistre(faux, monkeypatch):
+    monkeypatch.setattr(service.api, "DATABASE_URL", None)
+    with TestClient(creer_app(faux, CALIBRATION)) as c:
+        assert c.post("/normaliser", json={"texte": "wach"}).json()["id"] is None
+        assert c.get("/sante").json()["registre"] is False
+
+
+def test_database_url_active_le_registre(faux, tmp_path, monkeypatch):
+    monkeypatch.setattr(service.api, "DATABASE_URL", url_sqlite(tmp_path))
+    with TestClient(creer_app(faux, CALIBRATION)) as c:
+        d = c.post("/normaliser", json={"texte": "kanbghik bzaf"}).json()
+        assert c.get("/sante").json()["registre"] is True
+    assert Registre(url_sqlite(tmp_path)).prediction(d["id"])["sortie"] == d["sortie"]
+
+
+def test_503_documente_dans_openapi(client):
+    chemins = client.get("/openapi.json").json()["paths"]
+    for route in ("/normaliser", "/normaliser/lot"):
+        assert "503" in chemins[route]["post"]["responses"]

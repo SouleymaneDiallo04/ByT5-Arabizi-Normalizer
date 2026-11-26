@@ -249,6 +249,7 @@ Chaque résultat porte :
 
 | Champ | Contenu |
 |---|---|
+| `id` | l'identifiant de la prédiction dans le registre de validation, ou `null` si le service n'enregistre pas (voir [Validation humaine](#validation-humaine)) |
 | `sortie` | la transcription en écriture arabe |
 | `confiance` | le **rang** de la confiance parmi les phrases du jeu de développement, en centièmes (PO-05). À 0,10, neuf phrases sur dix étaient plus sûres : les rangs bas désignent les sorties à faire relire |
 | `confiance_brute` | la probabilité moyenne par octet produit, entre 0,92 et 1 en pratique, d'où le rang |
@@ -267,6 +268,38 @@ Les tests vérifient le contrat de l'API sans charger le modèle :
 python -m pip install pytest httpx
 python -m pytest
 ```
+
+## Validation humaine
+
+Toute prédiction passe par une validation humaine, qui alimente un registre
+d'erreurs réutilisable pour le réentraînement. La conception est décrite dans
+`docs/project/validation-humaine.md`. Trois conteneurs : le service, une base
+Postgres et l'interface de validation.
+
+```bash
+export HF_TOKEN=hf_...                     # pour construire l'image du service
+docker compose up --build -d
+```
+
+| Adresse | Rôle |
+|---|---|
+| <http://localhost:8000/docs> | le service ; chaque réponse porte l'`id` de la prédiction enregistrée |
+| <http://localhost:8001> | les prédictions à valider, les moins sûres d'abord |
+| <http://localhost:8001/historique> | les décisions prises, chacune réouvrable |
+
+Exporter les corrections pour l'entraînement (`--avec-confirmations` ajoute les
+sorties confirmées). Les phrases du jeu de test sont retirées de l'export :
+
+```bash
+docker compose run --rm --no-deps -v "$PWD:/travail" -w /travail validation \
+    python -m registre.exporter registre.csv --test test_real.csv
+```
+
+Sous PowerShell, écrire `"${PWD}:/travail"`. Sous Git Bash, préfixer la commande
+par `MSYS_NO_PATHCONV=1`, sans quoi `/travail` est converti en chemin Windows.
+
+Le registre survit à `docker compose down`. Il est effacé par
+`docker compose down -v`.
 
 ## Documentation
 

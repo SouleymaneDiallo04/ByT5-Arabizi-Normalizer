@@ -1,0 +1,7 @@
+{% if pages > 1 %}
+<p>
+  {% if page > 1 %}<a href="?page={{ page - 1 }}">← précédentes</a>{% endif %}
+  page {{ page }} sur {{ pages }}
+  {% if page < pages %}<a href="?page={{ page + 1 }}">suivantes →</a>{% endif %}
+</p>
+{% endif %}

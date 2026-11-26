@@ -1,0 +1,56 @@
+# Chaine de validation humaine : le service, sa base, l'interface.
+#   HF_TOKEN=... docker compose up --build -d
+# Le jeton ne sert qu'a construire l'image du service, le modele etant prive.
+# Service : http://localhost:8000/docs    Validation : http://localhost:8001
+# Les ports ne sont publies que sur la machine : l'interface n'a pas
+# d'authentification. "docker compose down -v" efface le registre.
+
+name: byt5-arabizi
+
+services:
+  base:
+    image: postgres:17.12-alpine
+    environment:
+      POSTGRES_USER: registre
+      POSTGRES_PASSWORD: ${REGISTRE_MOT_DE_PASSE:-registre}
+      POSTGRES_DB: registre
+    volumes:
+      - registre:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U registre -d registre"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      secrets: [hf_token]
+    environment:
+      DATABASE_URL: postgresql+psycopg://registre:${REGISTRE_MOT_DE_PASSE:-registre}@base:5432/registre
+    depends_on:
+      base:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  validation:
+    build:
+      context: .
+      dockerfile: validation/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://registre:${REGISTRE_MOT_DE_PASSE:-registre}@base:5432/registre
+    # L'api cree les tables a son demarrage : l'attendre evite que les deux
+    # conteneurs les creent en meme temps.
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8001:8001"
+
+volumes:
+  registre:
+
+secrets:
+  hf_token:
+    environment: HF_TOKEN

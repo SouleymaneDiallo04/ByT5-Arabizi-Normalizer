@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titre %}Historique{% endblock %}
+{% block contenu %}
+<h1>Historique : {{ total }} décision{{ "s" if total > 1 }}</h1>
+<p class="doux">Chaque décision est gardée. Pour une phrase revue plusieurs fois,
+la plus récente fait foi.</p>
+{% if lignes %}
+<table>
+<thead><tr><th>Date (UTC)</th><th>Validateur</th><th>Décision</th><th>Arabizi</th><th>Texte retenu</th><th></th></tr></thead>
+<tbody>
+{% for l in lignes %}
+<tr class="decision">
+  <td>{{ l.cree_le.strftime("%Y-%m-%d %H:%M") if l.cree_le }}</td>
+  <td>{{ l.validateur }}</td>
+  <td>{{ l.decision }}{% if l.motif %} ({{ motifs[l.motif] }}){% endif %}</td>
+  <td>{{ l.entree }}</td>
+  <td class="ar" dir="rtl" lang="ar">{% if l.decision == "corrigee" %}{{ l.correction }}{% elif l.decision == "confirmee" %}{{ l.sortie }}{% endif %}</td>
+  <td><a href="/prediction/{{ l.prediction_id }}?depuis=historique">Rouvrir</a></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% include "pages.html" %}
+{% else %}
+<p>Aucune décision pour l'instant.</p>
+{% endif %}
+{% endblock %}

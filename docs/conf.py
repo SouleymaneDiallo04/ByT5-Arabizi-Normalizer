@@ -10,6 +10,9 @@ language = "fr"
 extensions = [
     "myst_parser",
     "sphinx_copybutton",
+    # Diagrammes d'architecture en Mermaid, demandés par les directives du
+    # projet ; rendus dans le navigateur, sans outil à installer.
+    "sphinxcontrib.mermaid",
 ]
 
 myst_enable_extensions = [

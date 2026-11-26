@@ -17,3 +17,8 @@ CALIBRATION = os.environ.get(
 # Phrases par requete de lot (EF-06). Au-dela, mieux vaut plusieurs requetes :
 # sur processeur, un lot de 16 prend deja une quinzaine de secondes.
 MAX_LOT = int(os.environ.get("MAX_LOT", 64))
+
+# Base du registre de validation humaine. Definie, chaque prediction y est
+# enregistree avant que la reponse parte ; absente, le service n'enregistre
+# rien, comme dans les tests ou hors de la chaine docker compose.
+DATABASE_URL = os.environ.get("DATABASE_URL")

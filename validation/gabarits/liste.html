@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block titre %}À valider{% endblock %}
+{% block contenu %}
+<h1>{{ total }} prédiction{{ "s" if total > 1 }} à valider</h1>
+<p class="doux">Les moins sûres d'abord. La confiance est un rang : à 0,10, neuf
+phrases sur dix du jeu de développement étaient plus sûres.</p>
+{% if lignes %}
+<table>
+<thead><tr><th>Confiance</th><th>Arabizi</th><th>Sortie du modèle</th><th></th></tr></thead>
+<tbody>
+{% for l in lignes %}
+<tr class="prediction">
+  <td>{{ "%.2f"|format(l.confiance) }}</td>
+  <td>{{ l.entree }}</td>
+  <td class="ar" dir="rtl" lang="ar">{{ l.sortie }}</td>
+  <td><a href="/prediction/{{ l.id }}">Ouvrir</a></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% include "pages.html" %}
+{% else %}
+<p>Rien à valider.</p>
+{% endif %}
+{% endblock %}
