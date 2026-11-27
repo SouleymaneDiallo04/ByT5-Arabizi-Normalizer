@@ -293,19 +293,19 @@ def lire(chemin):
 
 
 def comparer_passes(base, autre, partie):
-    """Les memes entrees, sans puis avec des regles : ce que les regles changent."""
+    """Les memes entrees, deux passes : sans puis avec des regles, ou deux modeles."""
     cles = ["id", "bruit"]
     d = base.merge(autre[cles + ["sortie"]], on=cles, suffixes=("_base", "_regles"))
     d = d[(d["partie"] == partie) & ~d["refusee"]]
-    print(f"\n== {partie} : sans regles -> avec regles, sur les memes entrees")
-    print(f"{'bruit':<17}{'phrases':>8}{'changees':>9}{'CER sans':>10}{'avec':>8}"
+    print(f"\n== {partie} : passe --contre -> passe --fichier, sur les memes entrees")
+    print(f"{'bruit':<17}{'phrases':>8}{'changees':>9}{'CER contre':>11}{'fichier':>8}"
           f"{'pires/meill.':>13}{'p':>7}{'exactes -/+':>12}")
     for nom, t in [("propre", None)] + [(nom, t) for nom, _, t in BRUITS]:
         x = d[d["bruit"] == nom]
         if x.empty:
             continue
         m = mesurer(x.assign(propre=x["sortie_base"], bruitee=x["sortie_regles"]), t)
-        print(f"{nom:<17}{m['phrases']:>8}{m['changees']:>9}{m['cer_propre']:>10.4f}"
+        print(f"{nom:<17}{m['phrases']:>8}{m['changees']:>9}{m['cer_propre']:>11.4f}"
               f"{m['cer_bruite']:>8.4f}{m['pire']:>7}/{m['mieux']:<5}{m['p']:>7.3f}"
               f"{m['perdues']:>7}/{m['gagnees']:<4}")
 
@@ -318,6 +318,8 @@ def main():
                    help="regles de service/pretraitement.py, separees par des virgules")
     p.add_argument("--partie", choices=["reglage", "evaluation", "toutes"], default="toutes")
     p.add_argument("--contre", help="autre fichier de sorties : compare les deux passes")
+    p.add_argument("--cache", default=CACHE,
+                   help="cache des sorties ; un par modele quand le modele est un dossier local")
     a = p.parse_args()
     regles = tuple(r for r in a.regles.split(",") if r)
     parties = ["reglage", "evaluation"] if a.partie == "toutes" else [a.partie]
@@ -333,7 +335,7 @@ def main():
         lignes = bruiter(test)
         print(f"{len(lignes)} entrees, dont {int(lignes['refusee'].sum())} que l'API refuserait")
         a_decoder = lignes[~lignes["refusee"]]
-        lignes.loc[a_decoder.index, "sortie"] = decoder(a_decoder["entree"].tolist(), regles)
+        lignes.loc[a_decoder.index, "sortie"] = decoder(a_decoder["entree"].tolist(), regles, a.cache)
         colonnes = ["id", "partie", "darija_norm", "topic", "annotator_dialect", "mot_isole"]
         lignes = lignes.merge(test[colonnes], on="id")
         lignes.to_csv(a.fichier, index=False, encoding="utf-8-sig")
